@@ -58,6 +58,7 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:1
 .iter .st{margin-left:auto;font-family:var(--mono);font-size:11px}
 .iter .st.pass{color:var(--green)}.iter .st.fail{color:var(--primary)}.iter .st.run{color:var(--blue)}
 .iter .nums{font-family:var(--mono);font-size:11.5px;color:var(--gray);margin-top:7px;display:flex;gap:12px}
+.iter .rephint{font-family:var(--mono);font-size:11px;color:var(--purple);margin-top:7px}
 /* before/after */
 .ba{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-top:8px}
 .ba h5{font-size:12px;font-weight:700;margin-bottom:12px;color:var(--ink)}
@@ -107,7 +108,6 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:1
     <div class="ctrls">
       <span>inner</span><select id="innerModel"></select>
       <span>outer</span><select id="outerModel"></select>
-      <span>iters</span><select id="iters-n"><option>3</option><option>5</option><option>2</option><option>6</option></select>
       <span id="replaytag"></span>
     </div>
   </div>
@@ -125,7 +125,7 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:1
       </div>
     </div>
     <div class="col detail" id="right" style="display:none">
-      <h3 style="margin:0">Iteration <span id="seln">1</span> · live browser <span id="sess" style="color:var(--faint)"></span></h3>
+      <h3 style="margin:0">Iteration <span id="seln">1</span> · <span id="bmode" style="color:var(--gray)">—</span></h3>
       <div class="browser" id="browser">browser appears here</div>
       <div class="learn" id="learn">
         <div class="lab">what it learned this iteration</div>
@@ -144,7 +144,7 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:1
 
 <script>
 const $ = id => document.getElementById(id);
-let R = null, es = null, curBrowser = null;
+let R = null, es = null, curBrowser = null, userPinned = false;
 
 // ── boot ──
 fetch('/api/env').then(r=>r.json()).then(e=>{
@@ -180,7 +180,7 @@ async function startRun(){
   if(es) es.close();
   resetView(false);
   $('go').disabled=true; $('go').textContent='Running…';
-  const payload={prompt, innerModel:$('innerModel').value, outerModel:$('outerModel').value, iterations:Number($('iters-n').value)};
+  const payload={prompt, innerModel:$('innerModel').value, outerModel:$('outerModel').value};
   const {runId}=await (await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)})).json();
   R.id=runId;
   es=new EventSource(`/api/runs/${runId}/stream`);
@@ -203,7 +203,7 @@ function resetView(isReplay){
   $('empty').style.display='none'; $('left').style.display='block'; $('right').style.display='flex';
   $('replaytag').innerHTML = isReplay ? '<span class="replaytag">▷ replay</span>' : '';
   $('inner').innerHTML=''; $('skillbox').style.display='none'; $('browser').innerHTML='browser appears here';
-  curBrowser=null;
+  curBrowser=null; userPinned=false;
 }
 
 // ── event → state ──
@@ -211,7 +211,7 @@ function apply(ev){
   const it = ev.iter!=null ? (R.iters[ev.iter] ||= {iter:ev.iter,status:'run',inner:[],added:[]}) : null;
   switch(ev.type){
     case 'run-started': R.prompt=ev.prompt; R.models=ev.models||{}; lightStage('Objective'); break;
-    case 'iteration-started': if(!R.order.includes(ev.iter)) R.order.push(ev.iter); R.selected=ev.iter; lightStage('Run'); break;
+    case 'iteration-started': if(!R.order.includes(ev.iter)) R.order.push(ev.iter); if(!userPinned) R.selected=ev.iter; break;
     case 'session': if(it){ it.liveUrl=ev.liveViewUrl||null; it.sessionId=ev.sessionId||null; } break;
     case 'inner-action': if(it){ const d=String(ev.detail||'').trim(); if(ev.action!=='ok' && d) it.inner.push(ev); } break;
     case 'metrics': if(it){ it.turns=ev.turns; it.cost=ev.cost; it.latency=ev.latency; } break;
@@ -237,8 +237,9 @@ function render(){
     d.className='iter'+(R.selected===n?' sel':'');
     d.innerHTML=`<div class="top"><span class="dot ${it.status}"></span><span class="t">Iteration ${n}</span>
       <span class="st ${it.status}">${it.status==='pass'?'✓ pass':it.status==='fail'?'✗ fail':'running…'}</span></div>
-      <div class="nums">${it.turns!=null?it.turns+' turns':''} ${it.cost!=null?'· $'+it.cost:''} ${it.latency!=null?'· '+it.latency+'s':''}</div>`;
-    d.onclick=()=>{ R.selected=n; render(); };
+      <div class="nums">${it.turns!=null?it.turns+' turns':''} ${it.cost!=null?'· $'+it.cost:''} ${it.latency!=null?'· '+it.latency+'s':''}</div>
+      ${it.status!=='run' && it.sessionId ? '<div class="rephint">▷ click to replay recording</div>' : ''}`;
+    d.onclick=()=>{ R.selected=n; userPinned=true; render(); };
     $('iters').appendChild(d);
   }
   // before/after
@@ -254,6 +255,8 @@ function render(){
   if(it){
     const isLive = it.status==='run' && it.liveUrl && !R.replay;
     const canReplay = !isLive && it.sessionId;
+    $('bmode').textContent = isLive ? '● live' : canReplay ? '▷ recording' : 'session ended';
+    $('bmode').style.color = isLive ? 'var(--blue)' : canReplay ? 'var(--purple)' : 'var(--faint)';
     const bkey = it.iter+'|'+(isLive?'live:'+it.liveUrl : canReplay?'hls:'+it.sessionId : 'none');
     if(bkey!==curBrowser){ curBrowser=bkey;
       if(isLive){ $('browser').innerHTML=`<iframe src="${it.liveUrl}"></iframe>`; }

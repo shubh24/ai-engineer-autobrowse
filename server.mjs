@@ -67,7 +67,7 @@ const server = createServer(async (req, res) => {
     const opts = {
       innerModel: b.innerModel || 'claude-haiku-4-5-20251001',
       outerModel: b.outerModel || 'claude-sonnet-4-6',
-      iterations: Math.max(1, Math.min(10, Number(b.iterations) || 3)),
+      iterations: Math.max(1, Math.min(15, Number(b.iterations) || 12)), // run until pass (safety cap)
       steer: (b.steer || '').trim() || undefined,
     };
     const runId = randomUUID().slice(0, 8);
@@ -132,10 +132,23 @@ const server = createServer(async (req, res) => {
       const list = await (await fetch(`https://api.browserbase.com/v1/sessions/${rp[1]}/replays`, { headers: { 'X-BB-API-Key': key } })).json();
       const pageId = list?.pages?.[0]?.pageId ?? '0';
       const r = await fetch(`https://api.browserbase.com/v1/sessions/${rp[1]}/replays/${pageId}`, { headers: { 'X-BB-API-Key': key } });
-      const m3u8 = await r.text();
+      // CloudFront segments have no CORS header → route them through our same-origin proxy
+      const m3u8 = (await r.text()).replace(/https?:\/\/[^\s"']+/g, (m) => '/api/seg?u=' + encodeURIComponent(m));
       res.writeHead(r.ok ? 200 : r.status, { 'content-type': 'application/vnd.apple.mpegurl', 'cache-control': 'no-store' });
       return res.end(m3u8);
     } catch (e) { res.writeHead(502); return res.end('replay unavailable'); }
+  }
+
+  // segment proxy — stream HLS segments same-origin (CloudFront lacks CORS)
+  if (u.pathname === '/api/seg') {
+    const target = u.searchParams.get('u');
+    if (!target) { res.writeHead(400); return res.end(); }
+    try {
+      const r = await fetch(target);
+      const buf = Buffer.from(await r.arrayBuffer());
+      res.writeHead(r.ok ? 200 : r.status, { 'content-type': r.headers.get('content-type') || 'application/octet-stream', 'cache-control': 'no-store' });
+      return res.end(buf);
+    } catch (e) { res.writeHead(502); return res.end('seg failed'); }
   }
 
   // static
