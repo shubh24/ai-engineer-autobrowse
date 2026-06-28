@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>autobrowse — results</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--primary:#F03603;--black:#100D0D;--gray:#514F4F;--white:#F9F6F4;--line:#e6e2de;
+  --green:#5a8a1a;--greenbg:#eaf3da;--redbg:#fde9e2;--mono:'Geist Mono',monospace}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Inter,sans-serif;background:var(--white);color:var(--black);line-height:1.5}
+.wrap{max-width:1000px;margin:0 auto;padding:56px 40px 100px}
+.bar0{height:6px;background:var(--primary);border-radius:3px;margin-bottom:30px;max-width:60px}
+.kick{font-family:var(--mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--primary);font-weight:600}
+h1{font-size:46px;font-weight:800;letter-spacing:-.03em;margin:10px 0 8px}
+.lede{font-size:19px;color:var(--gray);max-width:70ch}
+.task{margin-top:18px;font-family:var(--mono);font-size:13px;color:var(--gray);background:#fff;border:1px solid var(--line);border-radius:8px;padding:12px 16px}
+h2{font-size:13px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--primary);font-weight:600;margin:54px 0 6px;padding-top:10px;border-top:1px solid var(--line)}
+.h2sub{font-size:16px;color:var(--gray);margin-bottom:22px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px 24px}
+.card .m{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray)}
+.card .mult{float:right;font-size:13px;font-weight:700;color:var(--green)}
+.row{display:flex;align-items:center;gap:12px;margin-top:14px}
+.row .lbl{width:74px;font-size:12px;color:var(--gray);font-family:var(--mono);text-align:right;flex-shrink:0}
+.track{flex:1;background:#f3f1ef;border-radius:5px;height:26px;position:relative;overflow:hidden}
+.fill{height:100%;border-radius:5px;display:flex;align-items:center;padding:0 9px;font-size:12.5px;font-weight:700;color:#fff;white-space:nowrap;min-width:fit-content}
+.fill.before{background:#e07a52}
+.fill.after{background:var(--green)}
+.badge{display:inline-block;font-family:var(--mono);font-size:11px;font-weight:700;padding:3px 9px;border-radius:5px}
+.badge.fail{background:var(--redbg);color:var(--primary)}
+.badge.pass{background:var(--greenbg);color:var(--green)}
+.statusrow{display:flex;gap:20px;margin-top:18px;padding-top:14px;border-top:1px dashed var(--line);font-size:13px;align-items:center}
+.statusrow .lbl{width:74px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--gray)}
+.proof{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-top:6px}
+table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+th,td{text-align:left;padding:11px 14px;font-size:14px;border-bottom:1px solid var(--line)}
+th{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--gray);background:#faf8f6}
+tr:last-child td{border-bottom:none} td .pr{font-weight:700}
+.skill{background:#fff;border:1px solid var(--line);border-radius:10px;padding:16px 18px;font-family:var(--mono);font-size:12px;color:var(--gray);overflow:auto}
+.skill .k{color:var(--primary)}
+.note{margin-top:22px;font-size:13.5px;color:var(--gray);background:#faf8f6;border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:6px;padding:13px 16px;line-height:1.5}
+.foot{margin-top:50px;font-family:var(--mono);font-size:12px;color:var(--gray);display:flex;justify-content:space-between;border-top:1px solid var(--line);padding-top:18px}
+@media(max-width:760px){.grid,.proof{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="bar0"></div>
+  <div class="kick">autobrowse · results</div>
+  <h1>Skills are weights.</h1>
+  <p class="lede">A frozen agent gets dramatically better at a hard browser task — no fine-tuning, no gradients. The only thing that changed is a markdown file the agent trained itself.</p>
+  <div class="task">task · find a one-way SFO→JFK flight on 2026-07-15, nonstop, sorted by price, return the top-3 cheapest as JSON — on google.com/travel/flights</div>
+
+  <!-- ── 1. TRAINING HILL-CLIMB ── -->
+  <h2>1 · Watch it learn — the hill-climb</h2>
+  <div class="h2sub">Same frozen agent (Claude Sonnet), training itself across iterations. Iteration 1 fights the date picker and fails; it learns the URL fast-path; iteration 2 nails it.</div>
+  <div class="grid">
+    <div class="card">
+      <div class="m">Turns <span class="mult">4.3× fewer</span></div>
+      <div class="row"><div class="lbl">iter 1</div><div class="track"><div class="fill before" style="width:100%">30</div></div></div>
+      <div class="row"><div class="lbl">iter 2</div><div class="track"><div class="fill after" style="width:23%">7</div></div></div>
+    </div>
+    <div class="card">
+      <div class="m">Cost <span class="mult">12× cheaper</span></div>
+      <div class="row"><div class="lbl">iter 1</div><div class="track"><div class="fill before" style="width:100%">$2.06</div></div></div>
+      <div class="row"><div class="lbl">iter 2</div><div class="track"><div class="fill after" style="width:8%">$0.17</div></div></div>
+    </div>
+    <div class="card">
+      <div class="m">Input tokens <span class="mult">13× fewer</span></div>
+      <div class="row"><div class="lbl">iter 1</div><div class="track"><div class="fill before" style="width:100%">676k</div></div></div>
+      <div class="row"><div class="lbl">iter 2</div><div class="track"><div class="fill after" style="width:7%">50k</div></div></div>
+    </div>
+    <div class="card">
+      <div class="m">Latency <span class="mult">2.7× faster</span></div>
+      <div class="row"><div class="lbl">iter 1</div><div class="track"><div class="fill before" style="width:100%">112s</div></div></div>
+      <div class="row"><div class="lbl">iter 2</div><div class="track"><div class="fill after" style="width:37%">41s</div></div></div>
+    </div>
+  </div>
+  <div class="statusrow"><span class="lbl">outcome</span> <span class="badge fail">iter 1 · ✗ failed (max turns)</span> → <span class="badge pass">iter 2 · ✓ passed</span> <span style="color:var(--gray)">— and it found the fast-path on its own</span></div>
+
+  <!-- ── 2. DEPLOY A/B ── -->
+  <h2>2 · Deploy the skill — with vs without</h2>
+  <div class="h2sub">A fresh frozen agent (Claude <b>Haiku</b>) on the same task: a bare prompt vs the trained <span style="font-family:var(--mono)">SKILL.md</span>. Same 30-turn budget.</div>
+  <div class="grid">
+    <div class="card">
+      <div class="m">Turns <span class="mult">4.3× fewer</span></div>
+      <div class="row"><div class="lbl">no skill</div><div class="track"><div class="fill before" style="width:100%">30</div></div></div>
+      <div class="row"><div class="lbl">+ skill</div><div class="track"><div class="fill after" style="width:23%">7</div></div></div>
+    </div>
+    <div class="card">
+      <div class="m">Cost <span class="mult">8× cheaper</span></div>
+      <div class="row"><div class="lbl">no skill</div><div class="track"><div class="fill before" style="width:100%">$0.75</div></div></div>
+      <div class="row"><div class="lbl">+ skill</div><div class="track"><div class="fill after" style="width:12%">$0.09</div></div></div>
+    </div>
+    <div class="card">
+      <div class="m">Latency <span class="mult">2.9× faster</span></div>
+      <div class="row"><div class="lbl">no skill</div><div class="track"><div class="fill before" style="width:100%">87s</div></div></div>
+      <div class="row"><div class="lbl">+ skill</div><div class="track"><div class="fill after" style="width:34%">30s</div></div></div>
+    </div>
+    <div class="card" style="display:flex;flex-direction:column;justify-content:center">
+      <div class="m">Outcome</div>
+      <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
+        <div><span class="lbl" style="display:inline-block;width:74px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--gray)">no skill</span> &nbsp;<span class="badge fail">✗ failed</span></div>
+        <div><span class="lbl" style="display:inline-block;width:74px;text-align:right;font-family:var(--mono);font-size:12px;color:var(--gray)">+ skill</span> &nbsp;<span class="badge pass">✓ completed</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="note"><b>The punchline:</b> a frozen <b>Haiku</b> agent — with a skill — beats a naive run that couldn't finish at all. Smaller model + the right markdown ≈ a bigger model without it.</div>
+
+  <!-- ── 3. PROOF ── -->
+  <h2>3 · The artifact &amp; the answer</h2>
+  <div class="h2sub">The skill graduates to <span style="font-family:var(--mono)">.claude/skills/</span> — paste into Claude Code / Codex. Here's the real result it pulled:</div>
+  <div class="proof">
+    <table>
+      <tr><th>#</th><th>Airline</th><th>Depart</th><th>Arrive</th><th>Duration</th><th>Price</th></tr>
+      <tr><td>1</td><td>JetBlue</td><td>6:00 AM</td><td>2:38 PM</td><td>5h 38m</td><td class="pr">$210</td></tr>
+      <tr><td>2</td><td>Alaska</td><td>1:38 PM</td><td>10:26 PM</td><td>5h 48m</td><td class="pr">$259</td></tr>
+      <tr><td>3</td><td>JetBlue</td><td>2:35 PM</td><td>11:20 PM</td><td>5h 45m</td><td class="pr">$264</td></tr>
+    </table>
+    <div class="skill"><span class="k">name:</span> google-flights-search<br><span class="k">description:</span> find cheapest nonstop flights…<br><br><b>## Fast path</b><br>open ?q=nonstop%20one-way%20<br>flights%20from%20SFO%20to%20JFK…<br>→ lands on results, skip the<br>&nbsp;&nbsp;date picker entirely<br><br><b>## Extract</b><br>snapshot → top-3 by price</div>
+  </div>
+
+  <div class="foot"><span>autobrowse · github.com/shubh24/ai-engineer-autobrowse</span><span>real runs · Browserbase × Claude</span></div>
+</div>
+</body>
+</html>

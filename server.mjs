@@ -3,7 +3,7 @@
 // The training loop lives in src/runner.mjs (the inner agent is autobrowse/scripts/evaluate.mjs).
 import { createServer } from 'node:http';
 import { readFile, mkdir } from 'node:fs/promises';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, appendFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -21,8 +21,25 @@ const runs = new Map();
 function emit(run, type, data = {}) {
   const ev = { seq: run.events.length, ts: Date.now(), type, ...data };
   run.events.push(ev);
+  try { appendFileSync(join(run.dir, 'events.ndjson'), JSON.stringify(ev) + '\n'); } catch {}
+  if (type === 'run-started') updateMeta(run, { site: data.site, models: data.models });
+  if (type === 'graduated') updateMeta(run, { skillName: data.skillName, passed: !!data.passed, status: 'graduated' });
+  if (type === 'run-finished') updateMeta(run, { status: run.status === 'error' ? 'error' : 'done' });
+  if (type === 'run-error') updateMeta(run, { status: 'error', error: data.message });
   const payload = `data: ${JSON.stringify(ev)}\n\n`;
   for (const res of run.clients) { try { res.write(payload); } catch {} }
+}
+
+function writeMeta(run) {
+  const meta = { id: run.id, prompt: run.prompt, innerModel: run.opts.innerModel, outerModel: run.opts.outerModel,
+    iterations: run.opts.iterations, startedAt: run.startedAt, status: run.status };
+  try { writeFileSync(join(run.dir, 'meta.json'), JSON.stringify(meta, null, 2)); } catch {}
+}
+function updateMeta(run, patch) {
+  const p = join(run.dir, 'meta.json');
+  let m = {};
+  try { m = JSON.parse(readFileSync(p, 'utf8')); } catch {}
+  try { writeFileSync(p, JSON.stringify({ ...m, ...patch }, null, 2)); } catch {}
 }
 
 const MIME = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
@@ -56,8 +73,9 @@ const server = createServer(async (req, res) => {
     const runId = randomUUID().slice(0, 8);
     const dir = join(WORKSPACE, runId);
     await mkdir(dir, { recursive: true });
-    const run = { id: runId, prompt, opts, status: 'running', events: [], clients: new Set(), dir };
+    const run = { id: runId, prompt, opts, status: 'running', events: [], clients: new Set(), dir, startedAt: Date.now() };
     runs.set(runId, run);
+    writeMeta(run);
     runAutobrowse(run, (type, data) => emit(run, type, data), { workspace: dir, env: process.env })
       .then(() => { run.status = 'done'; emit(run, 'run-finished'); })
       .catch((e) => { run.status = 'error'; emit(run, 'run-error', { message: String(e?.message || e) }); });
@@ -75,6 +93,35 @@ const server = createServer(async (req, res) => {
     run.clients.add(res);
     req.on('close', () => run.clients.delete(res));
     return;
+  }
+
+  // history: list past runs
+  if (u.pathname === '/api/history') {
+    const out = [];
+    try {
+      for (const id of readdirSync(WORKSPACE)) {
+        const mp = join(WORKSPACE, id, 'meta.json');
+        if (existsSync(mp)) { try { out.push(JSON.parse(readFileSync(mp, 'utf8'))); } catch {} }
+      }
+    } catch {}
+    out.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0));
+    res.writeHead(200, { 'content-type': 'application/json' });
+    return res.end(JSON.stringify(out));
+  }
+
+  // stored events for a run (replay a past run, or backlog for a live one)
+  const em = u.pathname.match(/^\/api\/runs\/([^/]+)\/events$/);
+  if (req.method === 'GET' && em) {
+    const live = runs.get(em[1]);
+    if (live) { res.writeHead(200, { 'content-type': 'application/json' }); return res.end(JSON.stringify(live.events)); }
+    const ep = join(WORKSPACE, em[1], 'events.ndjson');
+    if (existsSync(ep)) {
+      const events = readFileSync(ep, 'utf8').split('\n').filter(Boolean)
+        .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+      res.writeHead(200, { 'content-type': 'application/json' });
+      return res.end(JSON.stringify(events));
+    }
+    res.writeHead(404); return res.end('[]');
   }
 
   // static
