@@ -6,6 +6,7 @@
 <title>autobrowse — train a skill for a frozen agent</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1"></script>
 <style>
 :root{
   --bg:#F9F6F4; --panel:#fff; --panel2:#faf8f6; --line:#e6e2de; --line2:#efe9e4;
@@ -67,7 +68,8 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:1
 .ba .mult{margin-left:auto;font-size:11px;color:var(--green);font-weight:700}
 /* detail (right) */
 .detail{display:flex;flex-direction:column;gap:16px}
-.browser{background:#15110f;border:1px solid var(--line);border-radius:11px;height:300px;display:flex;align-items:center;justify-content:center;color:#8a807a;font-family:var(--mono);font-size:12px;text-align:center;overflow:hidden;position:relative}
+.browser{background:#15110f;border:1px solid var(--line);border-radius:11px;width:100%;aspect-ratio:16/9;max-height:64vh;display:flex;align-items:center;justify-content:center;color:#8a807a;font-family:var(--mono);font-size:12px;text-align:center;overflow:hidden;position:relative}
+.think-line{font-size:14px;color:var(--ink);padding:8px 0;line-height:1.5;border-bottom:1px solid var(--line2)}
 .browser iframe{width:100%;height:100%;border:0}
 .learn{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--purple);border-radius:10px;padding:18px 20px}
 .learn .lab{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--purple);margin-bottom:8px}
@@ -92,7 +94,7 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:1
 </head>
 <body>
 <div class="side">
-  <div class="brand"><span class="b">▲</span> autobrowse</div>
+  <div class="brand"><svg viewBox="0 0 100 100" width="22" height="22" style="border-radius:5px;vertical-align:-4px;margin-right:4px"><rect width="100" height="100" fill="#F03603"/><path d="M36 72.2222V27.7778H51.2381C57.5873 27.7778 62.6667 32.8571 62.6667 39.2063V41.746C62.6667 44.6667 61.5873 47.3968 59.7461 49.3651C62.2858 51.4603 63.9366 54.6349 63.9366 58.254V60.7936C63.9366 67.1428 58.8572 72.2222 52.508 72.2222H36ZM42.3493 65.873H52.508C55.3651 65.873 57.5873 63.6508 57.5873 60.7936V58.254C57.5873 55.3968 55.3651 53.1746 52.508 53.1746H42.3493V65.873ZM42.3493 46.8254H51.2381C54.0953 46.8254 56.3175 44.6032 56.3175 41.746V39.2063C56.3175 36.3492 54.0953 34.127 51.2381 34.127H42.3493V46.8254Z" fill="white"/></svg>autobrowse</div>
   <button class="newbtn" id="new">+ New skill</button>
   <h4>Skills trained</h4>
   <div class="skills" id="skills"></div>
@@ -109,7 +111,6 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:1
       <span id="replaytag"></span>
     </div>
   </div>
-  <div class="pipe" id="pipe"></div>
   <div class="body" id="bodywrap">
     <div class="empty" id="empty">
       <div class="big">Train a skill for a frozen agent.</div>
@@ -143,8 +144,7 @@ body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:1
 
 <script>
 const $ = id => document.getElementById(id);
-const STAGES = ['Objective','Run','Study','Hypothesize','Edit strategy.md','Judge','Graduate'];
-let R = null, es = null;
+let R = null, es = null, curBrowser = null;
 
 // ── boot ──
 fetch('/api/env').then(r=>r.json()).then(e=>{
@@ -153,7 +153,6 @@ fetch('/api/env').then(r=>r.json()).then(e=>{
   for(const m of models){ $('innerModel').add(new Option(short(m),m)); $('outerModel').add(new Option(short(m),m)); }
   $('innerModel').value = models[0]; $('outerModel').value = models[1]||models[0];
 }).catch(()=>{});
-$('pipe').innerHTML = STAGES.map(s=>`<span class="stg" data-s="${s}">${s}</span>`).join('');
 loadHistory();
 $('new').onclick = ()=>{ $('prompt').value=''; $('prompt').focus(); };
 $('go').onclick = startRun;
@@ -204,7 +203,7 @@ function resetView(isReplay){
   $('empty').style.display='none'; $('left').style.display='block'; $('right').style.display='flex';
   $('replaytag').innerHTML = isReplay ? '<span class="replaytag">▷ replay</span>' : '';
   $('inner').innerHTML=''; $('skillbox').style.display='none'; $('browser').innerHTML='browser appears here';
-  STAGES.forEach(s=>{}); document.querySelectorAll('.stg').forEach(x=>x.classList.remove('on'));
+  curBrowser=null;
 }
 
 // ── event → state ──
@@ -213,8 +212,8 @@ function apply(ev){
   switch(ev.type){
     case 'run-started': R.prompt=ev.prompt; R.models=ev.models||{}; lightStage('Objective'); break;
     case 'iteration-started': if(!R.order.includes(ev.iter)) R.order.push(ev.iter); R.selected=ev.iter; lightStage('Run'); break;
-    case 'session': if(it) it.liveUrl=ev.liveViewUrl||null; break;
-    case 'inner-action': if(it){ it.inner.push(ev); } lightStage('Run'); break;
+    case 'session': if(it){ it.liveUrl=ev.liveViewUrl||null; it.sessionId=ev.sessionId||null; } break;
+    case 'inner-action': if(it){ const d=String(ev.detail||'').trim(); if(ev.action!=='ok' && d) it.inner.push(ev); } break;
     case 'metrics': if(it){ it.turns=ev.turns; it.cost=ev.cost; it.latency=ev.latency; } break;
     case 'outer-reasoning':
       if(it){ if(ev.phase==='hypothesis'){ it.hypothesis=ev.text; lightStage('Hypothesize'); }
@@ -253,17 +252,33 @@ function render(){
   const it = R.selected!=null ? R.iters[R.selected] : null;
   $('seln').textContent = R.selected ?? '—';
   if(it){
-    $('browser').innerHTML = it.liveUrl ? `<iframe src="${it.liveUrl}"></iframe>` : `<div>iteration ${it.iter}${R.replay?' · (recording)':' · live'}<br><span style="font-size:11px">${it.status==='run'?'running…':'session ended'}</span></div>`;
+    const isLive = it.status==='run' && it.liveUrl && !R.replay;
+    const canReplay = !isLive && it.sessionId;
+    const bkey = it.iter+'|'+(isLive?'live:'+it.liveUrl : canReplay?'hls:'+it.sessionId : 'none');
+    if(bkey!==curBrowser){ curBrowser=bkey;
+      if(isLive){ $('browser').innerHTML=`<iframe src="${it.liveUrl}"></iframe>`; }
+      else if(canReplay){ $('browser').innerHTML=`<video id="vid" controls autoplay muted playsinline style="width:100%;height:100%;background:#000"></video>`; mountHls(it.sessionId); }
+      else { $('browser').innerHTML=`<div>iteration ${it.iter} · session ended</div>`; }
+    }
     $('hyp').textContent = it.hypothesis || (it.status==='run'?'thinking…':'—');
     $('study').textContent = it.study||'';
     $('adds').innerHTML = (it.added||[]).map(a=>`<span class="add">+ ${esc(a)}</span>`).join('');
-    $('inner').innerHTML = it.inner.map(a=>`<div class="action"><span class="v">${esc(a.action)}</span><span class="d">${esc(a.detail||'')}</span></div>`).join('');
+    $('inner').innerHTML = it.inner.map(a=> a.action==='think'
+      ? `<div class="think-line">${esc(a.detail)}</div>`
+      : `<div class="action"><span class="v">${esc(a.action)}</span><span class="d">${esc(a.detail||'')}</span></div>`).join('');
     $('inner').scrollTop=1e9;
   }
   // graduated skill
   if(R.graduated && R.skill){ $('skillbox').style.display='block'; $('skillpre').textContent=R.skill; }
 }
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
+function mountHls(sid){
+  const v=document.getElementById('vid'); if(!v) return;
+  const url='/api/replay/'+sid;
+  if(v.canPlayType('application/vnd.apple.mpegurl')){ v.src=url; }
+  else if(window.Hls && window.Hls.isSupported()){ const h=new Hls(); h.loadSource(url); h.attachMedia(v); }
+  else { v.src=url; }
+}
 </script>
 </body>
 </html>

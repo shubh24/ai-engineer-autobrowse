@@ -124,6 +124,20 @@ const server = createServer(async (req, res) => {
     res.writeHead(404); return res.end('[]');
   }
 
+  // session replay (HLS) for a finished run's browser — proxy the playlist (keeps the API key server-side)
+  const rp = u.pathname.match(/^\/api\/replay\/([^/]+)$/);
+  if (req.method === 'GET' && rp) {
+    const key = process.env.BROWSERBASE_API_KEY;
+    try {
+      const list = await (await fetch(`https://api.browserbase.com/v1/sessions/${rp[1]}/replays`, { headers: { 'X-BB-API-Key': key } })).json();
+      const pageId = list?.pages?.[0]?.pageId ?? '0';
+      const r = await fetch(`https://api.browserbase.com/v1/sessions/${rp[1]}/replays/${pageId}`, { headers: { 'X-BB-API-Key': key } });
+      const m3u8 = await r.text();
+      res.writeHead(r.ok ? 200 : r.status, { 'content-type': 'application/vnd.apple.mpegurl', 'cache-control': 'no-store' });
+      return res.end(m3u8);
+    } catch (e) { res.writeHead(502); return res.end('replay unavailable'); }
+  }
+
   // static
   const p = u.pathname === '/' ? '/index.html' : u.pathname;
   const fp = join(PUBLIC, p);
