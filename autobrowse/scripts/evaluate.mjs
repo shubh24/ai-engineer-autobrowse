@@ -316,6 +316,17 @@ function rewriteArgsForTrace(args, connectUrl) {
   return out;
 }
 
+// The browse CLI prints an oclif "Update available… / Run: npm i -g browse" notice
+// to stderr. On a FAILED command that notice leads the error text and masks the
+// real cause, confusing the agent. Strip it so the agent sees the actual output.
+function stripNotice(s) {
+  return String(s || "")
+    .split("\n")
+    .filter((l) => !/update available|npm i -g browse|^\s*Run:/i.test(l))
+    .join("\n")
+    .trim();
+}
+
 function executeCommand(command, connectUrl) {
   // Security: only allow the browse CLI and execute it without a shell so
   // metacharacters are treated as literal arguments instead of extra commands.
@@ -344,14 +355,14 @@ function executeCommand(command, connectUrl) {
       encoding: "utf-8",
       timeout: EXEC_TIMEOUT_MS,
       stdio: ["pipe", "pipe", "pipe"],
-      maxBuffer: 1024 * 1024,
+      maxBuffer: 64 * 1024 * 1024, // big a11y snapshots (Google Flights results ≈ >1MB) blow the default 1MB buffer
     });
-    return { output: output.trim(), error: false, duration_ms: Date.now() - start };
+    return { output: stripNotice(output), error: false, duration_ms: Date.now() - start };
   } catch (err) {
     const stderr = typeof err.stderr === "string" ? err.stderr : err.stderr?.toString("utf-8");
     const stdout = typeof err.stdout === "string" ? err.stdout : err.stdout?.toString("utf-8");
-    const output = stderr || stdout || err.message || String(err);
-    return { output: output.trim(), error: true, duration_ms: Date.now() - start };
+    const output = stripNotice(stderr) || stripNotice(stdout) || err.message || String(err);
+    return { output, error: true, duration_ms: Date.now() - start };
   }
 }
 

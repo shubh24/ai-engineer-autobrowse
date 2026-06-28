@@ -50,7 +50,7 @@ const server = createServer(async (req, res) => {
     const opts = {
       innerModel: b.innerModel || 'claude-haiku-4-5-20251001',
       outerModel: b.outerModel || 'claude-sonnet-4-6',
-      iterations: Math.max(1, Math.min(8, Number(b.iterations) || 3)),
+      iterations: Math.max(1, Math.min(10, Number(b.iterations) || 3)),
       steer: (b.steer || '').trim() || undefined,
     };
     const runId = randomUUID().slice(0, 8);

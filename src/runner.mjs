@@ -38,7 +38,7 @@ export async function runAutobrowse(run, emit, ctx) {
   const o = run.opts || {};
   const innerModel = o.innerModel || 'claude-haiku-4-5-20251001';
   const outerModel = o.outerModel || 'claude-sonnet-4-6';
-  const maxIters = Math.max(1, Math.min(8, o.iterations || 3));
+  const maxIters = Math.max(1, Math.min(10, o.iterations || 3));
   const maxTurns = o.maxTurns || 30; // compaction keeps context bounded, so a hard task has room to finish
   const env = { ...ctx.env, PATH: `${BROWSE_DIR}:${ctx.env.PATH}` };
 
