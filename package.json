@@ -1,0 +1,20 @@
+{
+  "name": "ai-engineer-autobrowse",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "autobrowse — train a browser skill for a frozen agent, watch it hill-climb live. (AI Engineer workshop)",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs",
+    "forge": "node bin/forge.mjs",
+    "demo": "node bin/demo.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.5"
+  }
+}

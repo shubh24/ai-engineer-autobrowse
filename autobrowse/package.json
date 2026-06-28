@@ -1,0 +1,13 @@
+{
+  "name": "autobrowse",
+  "version": "0.1.0",
+  "description": "Inner browser-execution agent (vendored into Forge) — runs a task via the Browse CLI against the current strategy.md and writes a trace.",
+  "type": "module",
+  "scripts": {
+    "evaluate": "node scripts/evaluate.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "dotenv": "^16.4.5"
+  }
+}

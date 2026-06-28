@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>autobrowse — train a skill for a frozen agent</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15110f; --panel:#1c1816; --panel2:#221d1b; --line:#322b28;
+  --ink:#f4f1ee; --dim:#a8a09b; --faint:#6f6862;
+  --primary:#F03603; --blue:#4DA9E4; --green:#90C94D; --yellow:#F4BA41; --purple:#9C71F0;
+  --mono:'Geist Mono',ui-monospace,monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Inter,sans-serif;background:var(--bg);color:var(--ink);height:100vh;overflow:hidden;display:flex;flex-direction:column}
+.topbar{display:flex;align-items:center;gap:16px;padding:14px 20px;border-bottom:1px solid var(--line);background:var(--panel)}
+.logo{font-weight:800;font-size:18px;letter-spacing:-.03em}.logo .b{color:var(--primary)}
+.prompt{flex:1;display:flex;gap:10px}
+.prompt input{flex:1;height:42px;background:var(--bg);border:1px solid var(--line);border-radius:8px;color:var(--ink);padding:0 14px;font-size:14px;font-family:inherit}
+.prompt input:focus{outline:none;border-color:var(--primary)}
+.btn{height:42px;padding:0 20px;background:var(--primary);color:#fff;border:none;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;font-family:inherit;white-space:nowrap}
+.btn:hover{background:#ff4a1a}.btn:disabled{opacity:.5;cursor:default}
+.pills{display:flex;gap:8px;font-family:var(--mono);font-size:11px}
+.pill{padding:4px 9px;border-radius:5px;border:1px solid var(--line);color:var(--dim)}
+.pill.ok{color:var(--green);border-color:#2c4016}.pill.no{color:var(--primary);border-color:#4a1c10}
+.presets{display:flex;gap:7px;padding:9px 20px;border-bottom:1px solid var(--line);background:var(--panel);align-items:center;flex-wrap:wrap}
+.presets .lbl{font-family:var(--mono);font-size:11px;color:var(--faint);margin-right:4px}
+.chip{font-size:12px;padding:5px 11px;border:1px solid var(--line);border-radius:20px;color:var(--dim);cursor:pointer;background:var(--panel2)}
+.chip:hover{border-color:var(--primary);color:var(--ink)}
+.sel{background:var(--panel2);color:var(--dim);border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:12px;font-family:var(--mono)}
+.grid{flex:1;display:grid;grid-template-columns:230px 1.2fr 1.1fr;gap:1px;background:var(--line);overflow:hidden}
+.col{background:var(--bg);overflow-y:auto;padding:16px}
+.col h3{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:12px}
+/* left: iterations + metrics */
+.iter{display:flex;align-items:center;gap:10px;padding:11px 12px;border:1px solid var(--line);border-radius:8px;margin-bottom:8px;background:var(--panel)}
+.iter .dot{width:9px;height:9px;border-radius:50%;background:var(--faint);flex-shrink:0}
+.iter.run .dot{background:var(--blue);animation:pulse 1s infinite}
+.iter.pass .dot{background:var(--green)}.iter.fail .dot{background:var(--yellow)}
+@keyframes pulse{50%{opacity:.3}}
+.iter .t{font-size:13px;font-weight:600}.iter .s{font-size:11px;color:var(--dim);font-family:var(--mono)}
+.metrics{margin-top:20px;display:grid;gap:10px}
+.metric{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+.metric .k{font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--faint)}
+.metric .v{font-size:22px;font-weight:700;margin-top:3px}
+.metric .v .arrow{color:var(--green);font-size:14px}
+/* center: live browser + inner */
+.browser{background:#000;border:1px solid var(--line);border-radius:10px;height:300px;display:flex;align-items:center;justify-content:center;color:var(--faint);font-family:var(--mono);font-size:12px;text-align:center;overflow:hidden;position:relative}
+.browser iframe{width:100%;height:100%;border:0}
+.feed{margin-top:8px}
+.action{display:flex;gap:10px;padding:7px 10px;border-radius:6px;font-size:13px;align-items:baseline}
+.action:hover{background:var(--panel)}
+.action .verb{font-family:var(--mono);font-size:11px;color:var(--primary);min-width:64px;font-weight:500}
+.action .d{color:var(--dim)}
+/* right: outer + strategy */
+.think{border-left:2px solid var(--purple);padding:8px 12px;margin-bottom:10px;background:var(--panel)}
+.think .ph{font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--purple);margin-bottom:4px}
+.think .tx{font-size:13px;line-height:1.5;color:var(--ink)}
+.strat{margin-top:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px;font-family:var(--mono);font-size:12px;line-height:1.6;white-space:pre-wrap;color:var(--dim);max-height:280px;overflow:auto}
+.strat .add{color:var(--green);background:rgba(144,201,77,.1);display:block}
+/* files strip */
+.files{border-top:1px solid var(--line);background:var(--panel);padding:8px 20px;height:84px;overflow-y:auto;font-family:var(--mono);font-size:11.5px}
+.files .fl{color:var(--faint);text-transform:uppercase;letter-spacing:.08em;font-size:10px;margin-bottom:5px}
+.fw{color:var(--dim)}.fw .nm{color:var(--green)}.fw .by{color:var(--faint)}
+/* skill modal */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;align-items:center;justify-content:center;z-index:50}
+.overlay.show{display:flex}
+.skill{background:var(--panel);border:1px solid var(--line);border-radius:12px;width:min(760px,92vw);max-height:88vh;display:flex;flex-direction:column}
+.skill .hd{padding:18px 22px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}
+.skill .hd h2{font-size:18px;font-weight:800}.skill .hd .sub{font-size:12px;color:var(--dim);margin-top:2px}
+.skill pre{flex:1;overflow:auto;margin:0;padding:20px 22px;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--ink);white-space:pre-wrap}
+.skill .ft{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.skill .use{font-family:var(--mono);font-size:11px;color:var(--dim);flex:1}
+.x{background:none;border:1px solid var(--line);color:var(--dim);border-radius:6px;padding:7px 12px;cursor:pointer;font-size:12px}
+.x:hover{color:var(--ink);border-color:var(--primary)}
+.empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--faint);gap:14px;text-align:center}
+.empty .big{font-size:30px;font-weight:800;letter-spacing:-.03em;color:var(--ink)}
+.empty .sm{font-size:15px;max-width:46ch;line-height:1.5}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="logo"><span class="b">▲</span> autobrowse</div>
+  <div class="prompt">
+    <input id="prompt" placeholder='go to flights.google.com and find the cheapest SFO→JFK next month' />
+    <button class="btn" id="go">Run ▸</button>
+  </div>
+  <div class="pills">
+    <span class="pill" id="pill-bb">browserbase …</span>
+    <span class="pill" id="pill-an">claude …</span>
+  </div>
+</div>
+<div class="presets">
+  <span class="lbl">try:</span>
+  <span class="chip" data-p="go to flights.google.com and find the cheapest SFO→JFK flight next month">✈ Google Flights</span>
+  <span class="chip" data-p="go to sfbay.craigslist.org and find 1-bedroom apartments under $3000">🏠 Craigslist</span>
+  <span class="chip" data-p="go to github.com and find the most-starred browser-automation repo">🐙 GitHub</span>
+  <span class="chip" data-p="go to sec.gov EDGAR and find Tesla's latest 10-K filing date">📄 SEC EDGAR</span>
+  <span style="flex:1"></span>
+  <span class="lbl">inner</span><select id="innerModel" class="sel"></select>
+  <span class="lbl">outer</span><select id="outerModel" class="sel"></select>
+  <span class="lbl">iters</span><select id="iters-n" class="sel"><option>3</option><option>2</option><option>4</option><option>5</option></select>
+</div>
+
+<div id="stage" class="grid" style="display:none">
+  <div class="col">
+    <h3>Iterations</h3>
+    <div id="iters"></div>
+    <div class="metrics">
+      <div class="metric"><div class="k">Cost</div><div class="v" id="m-cost">$0.00</div></div>
+      <div class="metric"><div class="k">Latency</div><div class="v" id="m-lat">—</div></div>
+      <div class="metric"><div class="k">Turns</div><div class="v" id="m-turns">0</div></div>
+    </div>
+  </div>
+  <div class="col">
+    <h3>Live browser <span id="sess" style="color:var(--faint)"></span></h3>
+    <div class="browser" id="browser">the inner agent's browser will appear here</div>
+    <h3 style="margin-top:18px">Inner loop · executor</h3>
+    <div class="feed" id="inner"></div>
+  </div>
+  <div class="col">
+    <h3>Outer loop · trainer</h3>
+    <div id="outer"></div>
+    <h3 style="margin-top:18px">strategy.md <span id="strat-iter" style="color:var(--faint)"></span></h3>
+    <div class="strat" id="strat">—</div>
+  </div>
+</div>
+
+<div id="welcome" class="empty">
+  <div class="big">Train a skill for a frozen agent.</div>
+  <div class="sm">Type a site + task above (or pick one). Watch the inner agent browse, the outer agent form a hypothesis, and <span style="color:var(--primary)">strategy.md</span> hill-climb — live. Out comes a SKILL.md you paste into Claude Code.</div>
+</div>
+
+<div class="files" id="files-wrap" style="display:none">
+  <div class="fl">Files written to ./workspace · live</div>
+  <div id="files"></div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="skill">
+    <div class="hd">
+      <div><h2>SKILL.md — graduated ✓</h2><div class="sub" id="skill-metrics"></div></div>
+      <button class="x" id="close">close</button>
+    </div>
+    <pre id="skill-body"></pre>
+    <div class="ft">
+      <div class="use">Use it: drop into <b>~/.claude/skills/&lt;name&gt;/SKILL.md</b> (Claude Code) or your Codex skills dir.</div>
+      <button class="btn" id="copy">Copy SKILL.md</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let es = null, metricsArr = {};
+
+fetch('/api/env').then(r=>r.json()).then(e=>{
+  $('pill-bb').textContent = 'browserbase ' + (e.browserbase?'✓':'✗');
+  $('pill-bb').className = 'pill ' + (e.browserbase?'ok':'no');
+  $('pill-an').textContent = (e.mode==='real'?'real · ':'mock · ') + 'claude ' + (e.anthropic?'✓':'✗');
+  $('pill-an').className = 'pill ' + (e.anthropic?'ok':'no');
+  const models = e.models || ['claude-haiku-4-5-20251001','claude-sonnet-4-6'];
+  const short = m => m.replace('claude-','').replace('-20251001','');
+  for(const m of models){ $('innerModel').add(new Option(short(m), m)); $('outerModel').add(new Option(short(m), m)); }
+  $('innerModel').value = models[0]; // haiku
+  $('outerModel').value = models[1] || models[0]; // sonnet
+}).catch(()=>{});
+
+$('go').onclick = start;
+$('prompt').addEventListener('keydown', e=>{ if(e.key==='Enter') start(); });
+document.querySelectorAll('.chip').forEach(c=> c.onclick = ()=>{ $('prompt').value = c.dataset.p; start(); });
+$('close').onclick = ()=> $('overlay').classList.remove('show');
+$('copy').onclick = ()=>{ navigator.clipboard.writeText($('skill-body').textContent); $('copy').textContent='Copied ✓'; setTimeout(()=>$('copy').textContent='Copy SKILL.md',1500); };
+
+async function start(){
+  const prompt = $('prompt').value.trim();
+  if(!prompt) return;
+  $('welcome').style.display='none'; $('stage').style.display='grid'; $('files-wrap').style.display='block';
+  $('iters').innerHTML=''; $('inner').innerHTML=''; $('outer').innerHTML=''; $('files').innerHTML='';
+  $('strat').textContent='—'; $('browser').innerHTML='the inner agent\'s browser will appear here';
+  $('m-cost').textContent='$0.00'; $('m-lat').textContent='—'; $('m-turns').textContent='0';
+  $('go').disabled=true; $('go').textContent='Running…';
+  if(es) es.close();
+  const payload = { prompt, innerModel:$('innerModel').value, outerModel:$('outerModel').value, iterations:Number($('iters-n').value) };
+  const r = await fetch('/api/runs',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(payload)});
+  const { runId } = await r.json();
+  es = new EventSource(`/api/runs/${runId}/stream`);
+  es.onmessage = (m)=> handle(JSON.parse(m.data));
+}
+
+const iterEls = {};
+function ensureIter(n){
+  if(iterEls[n]) return iterEls[n];
+  const el=document.createElement('div'); el.className='iter run';
+  el.innerHTML=`<span class="dot"></span><div><div class="t">Iteration ${n}</div><div class="s" id="iter-s-${n}">running…</div></div>`;
+  $('iters').appendChild(el); iterEls[n]=el; return el;
+}
+
+function handle(ev){
+  switch(ev.type){
+    case 'run-started':
+      $('sess').textContent = `· ${ev.models.executor} (exec) / ${ev.models.trainer} (train)`;
+      break;
+    case 'iteration-started': ensureIter(ev.iter); break;
+    case 'session':
+      if(ev.liveViewUrl){ $('browser').innerHTML = `<iframe src="${ev.liveViewUrl}"></iframe>`; }
+      else { $('browser').innerHTML = `<div>● live · iteration ${ev.iter}<br><span style="color:var(--faint);font-size:11px">${ev.note}</span></div>`; }
+      break;
+    case 'inner-action': {
+      const d=document.createElement('div'); d.className='action';
+      d.innerHTML=`<span class="verb">${ev.action}</span><span class="d">${esc(ev.detail)}</span>`;
+      $('inner').appendChild(d); $('inner').scrollTop=1e9; break;
+    }
+    case 'metrics': {
+      const arrow = '<span class="arrow">▼</span>';
+      $('m-cost').innerHTML = `$${ev.cost.toFixed(2)} ${ev.cost<(metricsArr.cost??9)?arrow:''}`;
+      $('m-lat').innerHTML = `${ev.latency}s ${ev.latency<(metricsArr.lat??9e9)?arrow:''}`;
+      $('m-turns').textContent = ev.turns;
+      metricsArr={cost:ev.cost,lat:ev.latency}; break;
+    }
+    case 'outer-reasoning': {
+      const d=document.createElement('div'); d.className='think';
+      d.innerHTML=`<div class="ph">iter ${ev.iter} · ${ev.phase}</div><div class="tx">${esc(ev.text)}</div>`;
+      $('outer').appendChild(d); $('outer').scrollTop=1e9; break;
+    }
+    case 'strategy-updated': {
+      $('strat-iter').textContent = `· v${ev.iter}`;
+      const base = $('strat').dataset.full || '';
+      // re-render full strategy with added lines highlighted
+      // (we keep it simple: append the new lines highlighted)
+      const adds = (ev.added||[]).map(a=>`<span class="add">+ ${esc(a)}</span>`).join('\n');
+      $('strat').innerHTML = ($('strat').dataset.full||'') + '\n' + adds;
+      $('strat').dataset.full = $('strat').innerHTML; $('strat').scrollTop=1e9; break;
+    }
+    case 'judged': {
+      const el=iterEls[ev.iter]; if(el){ el.className='iter '+(ev.pass?'pass':'fail'); $('iter-s-'+ev.iter).textContent=ev.verdict; }
+      break;
+    }
+    case 'file-written': {
+      const d=document.createElement('div'); d.className='fw';
+      d.innerHTML=`✎ ./workspace/<span class="nm">${esc(ev.name)}</span> <span class="by">(${ev.bytes} b)</span>`;
+      $('files').prepend(d); break;
+    }
+    case 'graduated':
+      $('skill-body').textContent = ev.skill;
+      $('skill-metrics').textContent = `${ev.metrics.turns} turns · $${ev.metrics.cost.toFixed(2)} · ${ev.metrics.latency}s`;
+      $('overlay').classList.add('show');
+      $('go').disabled=false; $('go').textContent='Run ▸';
+      break;
+    case 'run-error':
+      $('go').disabled=false; $('go').textContent='Run ▸';
+      alert('Run error: '+ev.message); break;
+  }
+}
+function esc(s){ return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+</script>
+</body>
+</html>
