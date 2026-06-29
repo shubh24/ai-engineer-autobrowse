@@ -39,6 +39,7 @@ export async function runAutobrowse(run, emit, ctx) {
   const innerModel = o.innerModel || 'claude-haiku-4-5-20251001';
   const outerModel = o.outerModel || 'claude-sonnet-4-6';
   const maxIters = Math.max(1, Math.min(15, o.iterations || 12)); // keep going until a passing run (safety cap)
+  const minIters = Math.max(1, Math.min(maxIters, o.minIters || 3)); // always run ≥3 so a passing run still shows a final pass with the full skill baked in
   const maxTurns = o.maxTurns || 30; // compaction keeps context bounded, so a hard task has room to finish
   const env = { ...ctx.env, PATH: `${BROWSE_DIR}:${ctx.env.PATH}` };
 
@@ -55,14 +56,15 @@ export async function runAutobrowse(run, emit, ctx) {
 
   const anthropic = new Anthropic({ apiKey: ctx.env.ANTHROPIC_API_KEY, baseURL: ctx.env.ANTHROPIC_BASE_URL || undefined });
 
-  let passed = false, lastMetrics = {};
-  for (let iter = 1; iter <= maxIters && !passed; iter++) {
+  let passed = false, lastMetrics = {}, lastIter = 0;
+  for (let iter = 1; iter <= maxIters; iter++) {
+    lastIter = iter;
     emit('iteration-started', { iter });
 
-    // 1) fresh isolated session — proxies/verified OFF (free-account friendly)
+    // 1) fresh isolated session — proxies + verified ON (evade anti-bot)
     let session;
     try {
-      const created = await browseJson(['cloud', 'sessions', 'create', '--keep-alive'], env);
+      const created = await browseJson(['cloud', 'sessions', 'create', '--keep-alive', '--proxies', '--verified'], env);
       const got = await browseJson(['cloud', 'sessions', 'get', created.id], env);
       const dbg = await browseJson(['cloud', 'sessions', 'debug', created.id], env);
       session = { id: created.id, connectUrl: got.connectUrl, live: dbg.debuggerFullscreenUrl };
@@ -97,6 +99,7 @@ export async function runAutobrowse(run, emit, ctx) {
     emit('strategy-updated', { iter, added: review.added || [], diff: lineDiff(before, strategy) });
     emit('judged', { iter, verdict: review.verdict, pass: !!review.pass });
     passed = !!review.pass;
+    if (passed && iter >= minIters) break; // stop once we've passed AND shown at least minIters runs
   }
 
   // 5) graduate → workspace copy + install into ./.claude/skills/<name>/ (usable by Claude Code)
@@ -108,7 +111,39 @@ export async function runAutobrowse(run, emit, ctx) {
   await mkdir(installDir, { recursive: true });
   await writeFile(join(installDir, 'SKILL.md'), skill);
   emit('file-written', { name: `.claude/skills/${skillName}/SKILL.md`, path: join(installDir, 'SKILL.md'), bytes: Buffer.byteLength(skill) });
-  emit('graduated', { skill, skillName, installPath: `.claude/skills/${skillName}/SKILL.md`, passed, metrics: lastMetrics });
+
+  // 6) FINAL SHOWCASE RUN — run the doer once more with the graduated SKILL.md baked
+  //    in, no matter how many iterations it took. This is the "after" the audience
+  //    compares to iteration 1: same task, the polished skill applied end-to-end.
+  let finalMetrics = lastMetrics, finalPassed = passed;
+  const finalIter = lastIter + 1;
+  try {
+    emit('iteration-started', { iter: finalIter, final: true });
+    await writeRel(ctx, emit, join('tasks', slug, 'strategy.md'), skill); // the doer reads strategy.md
+    const created = await browseJson(['cloud', 'sessions', 'create', '--keep-alive', '--proxies', '--verified'], env);
+    const got = await browseJson(['cloud', 'sessions', 'get', created.id], env);
+    const dbg = await browseJson(['cloud', 'sessions', 'debug', created.id], env);
+    const session = { id: created.id, connectUrl: got.connectUrl, live: dbg.debuggerFullscreenUrl };
+    emit('session', { iter: finalIter, sessionId: session.id, liveViewUrl: session.live });
+    let result;
+    try {
+      result = await runInner({ slug, workspace: ctx.workspace, connectUrl: session.connectUrl, model: innerModel, runNumber: finalIter, maxTurns, env, emit, iter: finalIter });
+    } finally {
+      browseJson(['cloud', 'sessions', 'update', session.id, '--status', 'REQUEST_RELEASE'], env).catch(() => {});
+    }
+    finalMetrics = { cost: result.cost_usd, latency: Math.round(result.duration_sec), turns: result.turns };
+    emit('metrics', { iter: finalIter, ...finalMetrics });
+    const summary = await readFile(join(result.trace_dir, 'summary.md'), 'utf8').catch(() => '(no summary written)');
+    const review = await trainerStep({ anthropic, model: outerModel, prompt: run.prompt, strategy: skill, summary, iter: finalIter, isLast: true, status: result.status, steer: o.steer });
+    finalPassed = !!review.pass;
+    emit('outer-reasoning', { iter: finalIter, phase: 'study', text: review.study });
+    emit('outer-reasoning', { iter: finalIter, phase: 'hypothesis', text: 'Final run with the graduated SKILL.md — the skill applied end-to-end, no further learning.' });
+    emit('judged', { iter: finalIter, verdict: review.verdict, pass: finalPassed });
+  } catch (e) {
+    emit('outer-reasoning', { iter: finalIter, phase: 'study', text: `Final graduated-skill run could not complete: ${e.message}` });
+  }
+
+  emit('graduated', { skill, skillName, installPath: `.claude/skills/${skillName}/SKILL.md`, passed: finalPassed, metrics: finalMetrics });
 }
 
 // ── inner agent (vendored evaluate.mjs) ──────────────────────────────────────

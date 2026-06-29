@@ -581,8 +581,8 @@ async function main() {
 
     if (assistantText) {
       lastAssistantText = assistantText;
-      const short = assistantText.slice(0, 200).replace(/\n/g, " ");
-      console.error(`  [${turn}] reasoning: ${short}${assistantText.length > 200 ? "..." : ""}`);
+      const short = assistantText.slice(0, 600).replace(/\n/g, " ");
+      console.error(`  [${turn}] reasoning: ${short}${assistantText.length > 600 ? "..." : ""}`);
       trace.push({
         turn,
         timestamp: new Date().toISOString(),
@@ -666,7 +666,7 @@ async function main() {
   // ── Write final artifacts ──────────────────────────────────────
   const durationSec = (Date.now() - startTime) / 1000;
   const pricing = {
-    "claude-opus-4-6": [5, 25],
+    "claude-opus-4-8": [15, 75],
     "claude-sonnet-4-6": [3, 15],
     "claude-haiku-4-5-20251001": [1, 5],
   };
