@@ -1,4 +1,4 @@
-# ▲ autobrowse
+# autobrowse
 
 **Train a browser skill for a frozen agent — and watch it hill-climb, live.**
 
