@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hill Climbing Skills · AI Engineer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<!-- ░░ FONTS ░░  Brand = GT Planar (display) / GT Standard (body) / GT Standard Mono (mono) — Grilli Type, commercial.
+     These render only if installed in the OS, or embedded. To make the deck self-contained, drop the font files
+     (woff2/otf) into aie/assets/fonts/ and add @font-face rules — see the commented block below.
+     Until then it falls back to the free look-alikes loaded here: Hanken Grotesk / Inter / Geist Mono. -->
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- @font-face{font-family:'GT Planar';src:url('assets/fonts/GT-Planar.woff2') format('woff2');font-weight:400 900}
+     @font-face{font-family:'GT Standard';src:url('assets/fonts/GT-Standard.woff2') format('woff2');font-weight:400 700}
+     @font-face{font-family:'GT Standard Mono';src:url('assets/fonts/GT-Standard-Mono.woff2') format('woff2')} -->
+<style>
+:root{
+  /* ░░ FONT VARIABLES — swap the family names here ░░ */
+  --font-display:'GT Planar','Hanken Grotesk',system-ui,sans-serif;
+  --font-body:'GT Standard','Inter',system-ui,sans-serif;
+  --font-mono:'GT Standard Mono','Geist Mono',ui-monospace,monospace;
+
+  /* brand palette (from Paul's AIE deck) */
+  --paper:#FAF7F3;         /* warm cream — consistent slide background */
+  --orange:#FF3D00;        /* vivid brand orange — slide bg + highlight */
+  --ink:#0B0A0A;           /* headline black on white slides */
+  --black:#000000;         /* black statement slides */
+  --gray:#3f3b39;          /* dark body text (multi-item lists) */
+  --lead:#6E7AA6;          /* signature periwinkle lead paragraph */
+  --foot:#A9B4D0;          /* light periwinkle footer / labels */
+  --line:#EAE7E3;          /* hairline rules */
+  --green:#4F8A1B;
+  --chip:#E2E6F4;          /* periwinkle index-chip bg */
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:var(--font-body);background:#16110f;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.deck{width:100vw;height:100vh;max-width:177.78vh;max-height:56.25vw;position:relative;background:var(--paper);overflow:hidden}
+
+/* ── slide frame ── */
+.slide{position:absolute;inset:0;padding:72px 92px 84px;flex-direction:column;background:var(--paper);color:var(--ink);animation:fade .28s ease}
+.slide:not(.on){display:none!important}
+.slide.on{display:flex}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+/* top hairline */
+.slide::before{content:"";position:absolute;left:0;right:0;top:58px;height:1px;background:var(--line)}
+.slide.orange,.slide.black,.slide.title{color:#fff}
+.slide.orange{background:var(--orange)}
+.slide.black{background:var(--black)}
+.slide.orange::before,.slide.black::before{background:rgba(255,255,255,.16)}
+.slide.title::before{display:none}
+
+/* ── footer ── */
+.foot{position:absolute;left:92px;right:92px;bottom:34px;display:flex;justify-content:space-between;align-items:center;
+  font-family:var(--font-mono);font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--foot)}
+.orange .foot,.black .foot{color:rgba(255,255,255,.55)}
+
+/* ── kickers / labels ── */
+.kick{font-family:var(--font-mono);font-size:16px;letter-spacing:.16em;text-transform:uppercase;color:var(--orange);font-weight:500;margin-bottom:22px}
+.black .kick{color:var(--orange)}
+.label{font-family:var(--font-mono);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--foot);font-weight:500}
+
+/* ── headlines ── */
+h1{font-family:var(--font-display);font-weight:800;letter-spacing:-.022em;line-height:1.04;color:inherit}
+.hl{color:var(--orange)}
+.orange .hl{color:#0B0A0A}
+
+/* ── STATEMENT slides (centered) ── */
+.statement{justify-content:center}
+.statement h1{font-size:92px;max-width:18ch}
+.statement.sm h1{font-size:62px;max-width:22ch}
+.statement .sub{font-family:var(--font-body);font-size:32px;font-weight:400;line-height:1.4;margin-top:26px;max-width:40ch}
+.orange .statement .sub{color:rgba(255,255,255,.92)}
+.statement .by{margin-top:46px;font-family:var(--font-mono);font-size:14px;letter-spacing:.06em;color:var(--foot)}
+
+/* ── CONTENT head (top-left) ── */
+.head{margin-bottom:auto}
+.head h1{font-size:74px;max-width:20ch}
+.lead-p{font-family:var(--font-body);font-size:30px;line-height:1.5;color:var(--lead);max-width:60ch;margin-top:22px}
+.body{margin-top:54px}
+
+/* ── 3 / 2 column features ── */
+.cols{display:grid;gap:40px}
+.cols.c3{grid-template-columns:repeat(3,1fr)}
+.cols.c2{grid-template-columns:repeat(2,1fr);max-width:78%}
+.col h4{font-family:var(--font-display);font-size:27px;font-weight:700;letter-spacing:-.01em}
+.col p{font-size:23px;line-height:1.5;color:var(--gray);margin-top:12px;max-width:34ch}
+.col .num{font-family:var(--font-mono);font-size:13px;color:var(--orange);display:block;margin-bottom:10px}
+
+/* ── vertical list with icons ── */
+.vlist{display:flex;flex-direction:column;width:100%;max-width:1060px}
+.vrow{display:grid;grid-template-columns:54px 1fr;gap:26px;align-items:start;padding:24px 0;border-bottom:1px solid var(--line)}
+.vrow:first-child{border-top:1px solid var(--line)}
+.vic{width:46px;height:46px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.vic svg{width:34px;height:34px;fill:none;stroke:#0B0A0A;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.vrow h4{font-family:var(--font-display);font-size:36px;font-weight:700;letter-spacing:-.01em}
+.vrow p{font-size:25px;line-height:1.5;color:var(--gray);margin-top:7px;max-width:72ch}
+.vrow .em{color:var(--ink);font-weight:600}
+.vrow .sym{font-family:var(--font-mono);font-size:14px;text-transform:uppercase;letter-spacing:.07em;color:var(--orange);margin-bottom:5px;font-weight:500}
+
+/* ── widget cards ── */
+.widgets{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;width:100%}
+.widget{background:#fff;border:1px solid var(--line);border-radius:14px;padding:30px 28px;display:flex;flex-direction:column;gap:13px;min-height:320px}
+.widget .wic{width:54px;height:54px;border-radius:11px;background:#FFF1EC;display:flex;align-items:center;justify-content:center}
+.widget .wic svg{width:28px;height:28px;fill:none;stroke:var(--orange);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.widget h4{font-family:var(--font-display);font-size:35px;font-weight:700;letter-spacing:-.01em;margin-top:4px}
+.widget p{font-size:23px;line-height:1.5;color:var(--gray)}
+.widget .tagline{margin-top:auto;font-family:var(--font-mono);font-size:12px;letter-spacing:.04em;color:var(--orange);text-transform:uppercase}
+
+/* ── definition list ── */
+.deflist{display:flex;flex-direction:column}
+.def{display:grid;grid-template-columns:34% 1fr;gap:48px;align-items:center;padding:26px 0;border-bottom:1px solid var(--line)}
+.def:first-child{border-top:1px solid var(--line)}
+.def .term{font-family:var(--font-display);font-size:42px;font-weight:700;letter-spacing:-.01em}
+.def .desc{font-size:26px;line-height:1.5;color:var(--gray)}
+.def .term .tag{font-family:var(--font-mono);font-size:12px;color:#fff;background:var(--orange);padding:3px 9px;border-radius:4px;vertical-align:middle;margin-left:12px;letter-spacing:.05em;text-transform:uppercase;font-weight:500}
+
+/* ── big stat row ── */
+.stat{display:grid;grid-template-columns:auto 1fr;gap:34px;align-items:center;margin-top:14px}
+.stat .num{font-family:var(--font-display);font-size:84px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.stat .desc{font-size:20px;line-height:1.45;color:var(--lead);max-width:38ch}
+
+/* ── numbered fact grid ── */
+.facts{display:grid;grid-template-columns:repeat(2,1fr);gap:34px 56px}
+.fact{display:flex;gap:16px;align-items:flex-start}
+.fact .idx{font-family:var(--font-mono);font-size:14px;background:var(--chip);color:#3a4a86;padding:3px 9px;border-radius:3px;flex-shrink:0;margin-top:4px}
+.fact h4{font-family:var(--font-display);font-size:25px;font-weight:700;letter-spacing:-.01em}
+.fact p{font-size:16px;line-height:1.5;color:var(--gray);margin-top:7px;max-width:36ch}
+
+/* ── flow diagram (boxes) ── */
+.flow{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.node{border:1.5px solid var(--ink);border-radius:6px;padding:16px 20px;text-align:center;min-width:118px}
+.node b{font-family:var(--font-display);font-size:20px;font-weight:700;display:block}
+.node span{font-family:var(--font-mono);font-size:11px;color:var(--lead);margin-top:5px;display:block}
+.node.hot{border-color:var(--orange);background:#fff5f1}
+.arr{color:var(--orange);font-size:24px;font-weight:700}
+
+/* ── inline SVG diagrams ── */
+.diagram{width:100%;max-width:1000px;height:auto}
+.diagram .dt{font-family:var(--font-display);font-weight:700;font-size:22px;fill:#0B0A0A;text-anchor:middle}
+.diagram .ds{font-family:var(--font-mono);font-size:12px;fill:#6E7AA6;text-anchor:middle}
+.diagram .dl{font-family:var(--font-mono);font-size:14px;fill:#FF3D00;text-anchor:middle;letter-spacing:.04em}
+.diagram .rlab{font-family:var(--font-mono);font-size:14px;fill:#3f3b39;text-anchor:end}
+.diagram .rval{font-family:var(--font-mono);font-weight:500;font-size:16px}
+.diagram .rbadge{font-family:var(--font-display);font-weight:700;font-size:21px;fill:#FF3D00}
+.diagram .chip{font-family:var(--font-mono);font-size:15px}
+
+/* ── dark code card ── */
+.code{background:#0E0D0D;border-radius:10px;padding:30px 34px;font-family:var(--font-mono);font-size:21px;line-height:1.85;color:#E8E6E3;max-width:80%}
+.code .c{color:#8C97C4}            /* comment / periwinkle */
+.code .rm{color:#9b8f88;text-decoration:line-through}
+.code .add{color:#5BC24A}          /* added green */
+.code .k{color:var(--orange)}
+
+/* ── before/after bars ── */
+.bars{display:flex;flex-direction:column;gap:20px;max-width:760px}
+.barrow{display:grid;grid-template-columns:92px 1fr;gap:20px;align-items:center}
+.barrow .k{font-family:var(--font-mono);font-size:14px;color:var(--gray);text-align:right}
+.barpair{display:flex;flex-direction:column;gap:8px}
+.bar{height:36px;border-radius:5px;display:flex;align-items:center;padding:0 14px;color:#fff;font-weight:700;font-size:16px;font-family:var(--font-mono);white-space:nowrap}
+.bar.before{background:#E3B7A6;color:#5a3322}
+.bar.after{background:var(--orange)}
+.bar.fail{background:#E3B7A6;color:#5a3322}
+.bar.pass{background:var(--green)}
+.cite{font-family:var(--font-mono);font-size:14px;color:var(--foot);margin-top:26px}
+
+/* ── steps ── */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:84%}
+.step{border:1px solid var(--line);border-radius:10px;padding:24px}
+.step .num{font-family:var(--font-mono);color:var(--orange);font-size:14px}
+.step h4{font-family:var(--font-display);font-size:23px;font-weight:700;margin-top:10px}
+.step p{color:var(--gray);font-size:15px;margin-top:8px;line-height:1.45}
+.step code{font-family:var(--font-mono);background:#f3f0ec;padding:2px 7px;border-radius:5px;font-size:14px}
+.repo{font-family:var(--font-mono);font-size:22px;color:var(--orange);margin-top:18px;line-height:1.4}
+
+/* ── split (text + image) ── */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:56px;flex:1;align-items:center;margin-top:34px}
+.split img{max-width:100%;max-height:62vh;border-radius:10px;border:1px solid var(--line)}
+.role{font-family:var(--font-mono);font-size:21px;color:var(--orange);margin-top:14px;letter-spacing:.02em}
+.portrait{width:440px;height:440px;object-fit:cover;border-radius:16px;border:1px solid var(--line)}
+/* ── embedded session replay ── */
+.replay{width:auto;height:60vh;max-width:100%;aspect-ratio:16/9;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#15110f;display:flex;align-items:center;justify-content:center}
+.replay video{width:100%;height:100%;object-fit:contain;display:block}
+.replay img{width:100%;height:100%;object-fit:contain;display:block;background:#fff}
+.rvp{font-family:var(--font-mono);font-size:14px;color:#8a807a;text-align:center;padding:20px}
+.rvp b{color:#cabfb6}
+.cap{font-family:var(--font-mono);font-size:14px;color:var(--foot);letter-spacing:.03em}
+/* ── auto-research / artifact / results visuals ── */
+.lead-p code,.sub code,.skillcard code{font-family:var(--font-mono);font-size:.82em;background:#efe7df;padding:1px 6px;border-radius:4px;color:var(--ink)}
+.skillcard{display:grid;grid-template-columns:1fr 1fr;gap:34px;width:100%;background:#fff;border:1px solid var(--line);border-radius:14px;padding:28px 32px}
+.skillcard .sk-fm{font-family:var(--font-mono);font-size:15px;color:var(--primary)}
+.skillcard .sk-desc{font-size:15px;color:var(--gray);margin:8px 0 20px;line-height:1.5}
+.skillcard .sk-h{font-family:var(--font-mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:12px}
+.skillcard .sk-step{font-size:15.5px;color:var(--ink);margin:9px 0;line-height:1.45}
+.skillcard .sk-step b{color:var(--primary);font-family:var(--font-mono)}
+.skillcard .sk-g{font-size:15px;color:var(--gray);margin:0 0 14px;line-height:1.5}
+.mdfile{width:100%;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.mdfile .bar{display:flex;align-items:center;padding:11px 18px;border-bottom:1px solid var(--line);background:#faf8f6}
+.mdfile .bar .fn{font-family:var(--font-mono);font-size:15px;color:var(--ink);font-weight:500}
+.mdfile .bar .pth{font-family:var(--font-mono);font-size:13px;color:var(--faint);margin-left:auto}
+.mdfile pre{margin:0;padding:20px 28px;font-family:var(--font-mono);font-size:15.5px;line-height:1.55;color:#3f3b39;white-space:pre-wrap;overflow:auto}
+.mdfile .fm{color:#9a908a}
+.mdfile .h{color:var(--orange);font-weight:600}
+.mdfile .b{color:var(--ink);font-weight:700}
+.mdfile .inj{display:inline-block;width:100%;background:#FFF1EC;color:var(--orange);font-weight:700;border-left:3px solid var(--orange);padding:2px 0 2px 10px;margin-left:-10px}
+.reschart{background:#fff;border:1px solid var(--line);border-radius:12px;padding:22px 24px}
+.reschart h5{font-family:var(--font-display);font-size:20px;font-weight:700}
+.reschart .delta{font-family:var(--font-mono);font-size:13px;color:var(--green);margin:5px 0 6px}
+.reschart .cl{font-family:var(--font-mono);font-size:17px;fill:#56504b}
+.reschart .cx{font-family:var(--font-mono);font-size:13px;fill:#9a908a}
+.reschart.sm{padding:9px 18px}
+.reschart.sm h5{font-size:19px}
+.reschart.sm .delta{font-size:14px;margin:3px 0 4px}
+.resrow{display:grid;grid-template-columns:128px repeat(4,1fr);gap:14px;align-items:center}
+.resrow-lab{font-family:var(--font-display);font-weight:700;font-size:29px;letter-spacing:-.01em;color:var(--ink);line-height:1.1}
+.resrow-lab.hero{color:var(--orange)}
+.resrow-lab .sub{font-family:var(--font-mono);font-size:12px;font-weight:400;color:var(--gray);margin-top:4px;text-transform:none;letter-spacing:0}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:18px 28px;width:100%}
+.metric{background:#fff;border:1px solid var(--line);border-radius:12px;padding:18px 22px}
+.m-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.m-name{font-family:var(--font-display);font-size:21px;font-weight:700}
+.m-mult{font-family:var(--font-mono);font-size:14px;font-weight:600;color:var(--green)}
+.m-row{display:grid;grid-template-columns:84px 1fr;gap:12px;align-items:center;margin-top:8px}
+.m-lbl{font-family:var(--font-mono);font-size:12px;color:var(--faint);text-align:right}
+.track{background:#f3efe9;border-radius:6px;height:30px;overflow:hidden}
+.fill{height:100%;border-radius:6px;display:flex;align-items:center;padding:0 12px;font-family:var(--font-mono);font-size:14px;font-weight:600;color:#fff;white-space:nowrap;min-width:fit-content}
+.fill.before{background:#e3b7a6;color:#5a3322}
+.fill.after{background:var(--orange)}
+.conds{display:grid;grid-template-columns:1fr 1fr;gap:20px;width:100%}
+.cond{background:#fff;border:1px solid var(--line);border-radius:12px;padding:24px 26px}
+.cond .idx{font-family:var(--font-mono);font-size:13px;background:var(--chip);color:#3a4a86;padding:3px 9px;border-radius:4px}
+.cond h4{font-family:var(--font-display);font-size:32px;font-weight:700;margin:14px 0 8px;letter-spacing:-.01em}
+.cond p{font-size:23px;color:var(--gray);line-height:1.5}
+.step .cmd{font-family:var(--font-mono);font-size:12.5px;background:#15110f;color:#e8e6e3;border-radius:7px;padding:10px 12px;margin-top:14px;line-height:1.55;white-space:pre-wrap;word-break:break-word}
+.bullets{list-style:none;margin:0 0 20px}
+.bullets li{position:relative;padding-left:26px;margin-bottom:14px;font-size:27px;line-height:1.45;color:var(--gray)}
+.bullets li:before{content:"›";position:absolute;left:0;color:var(--orange);font-weight:700;font-size:20px}
+.bullets code{font-family:var(--font-mono);font-size:.85em;background:#efe7df;padding:1px 6px;border-radius:4px;color:var(--ink)}
+.cta-row{display:flex;gap:18px;margin-top:34px;flex-wrap:wrap;justify-content:center}
+.cta{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 22px;text-align:left}
+.cta-lab{font-family:var(--font-mono);font-size:14px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:7px}
+.cta-cmd{font-family:var(--font-mono);font-size:20px;color:var(--ink)}
+.foot-qr{display:flex;align-items:center;gap:8px;text-transform:none;letter-spacing:0}
+.foot-qr img{width:38px;height:38px;display:block;background:#fff;padding:2px;border-radius:4px}
+.slido-embed{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;height:100%;min-height:540px}
+.slido-embed iframe{width:100%;height:100%;min-height:540px;border:0;display:block}
+
+/* ── title slide ── */
+.title{padding:0}
+.title .hero{position:absolute;inset:0;overflow:hidden;background:#fff}
+.title .hero img{width:100%;height:100%;object-fit:cover;object-position:center;display:block}
+.title .overlay{position:absolute;left:0;right:0;bottom:0;padding:150px 92px 60px;display:flex;flex-direction:column;align-items:flex-start;
+  background:linear-gradient(to top,rgba(250,247,243,.98) 0%,rgba(250,247,243,.88) 42%,rgba(250,247,243,0) 100%)}
+.title .kick{color:var(--orange);margin-bottom:14px}
+.title-h{display:inline-block;background:var(--orange);color:#fff;font-family:var(--font-display);font-weight:800;
+  font-size:66px;letter-spacing:-.022em;line-height:1.1;padding:.07em .26em;align-self:flex-start}
+.title .sub{font-family:var(--font-display);font-weight:700;font-size:36px;color:var(--ink);margin-top:20px;letter-spacing:-.01em}
+.title .byrow{display:flex;gap:42px;margin-top:24px;font-family:var(--font-mono);font-size:17px;letter-spacing:.06em;color:var(--gray)}
+
+/* ── pixel checkerboard placeholder (swap for real PNG asset) ── */
+.checker{background:repeating-conic-gradient(var(--orange) 0% 25%,#F7CCD5 0% 50%) 0/26px 26px}
+
+/* ── chrome ── */
+.prog{position:absolute;top:0;left:0;height:4px;background:var(--orange);transition:width .3s;z-index:30}
+.ctr{position:fixed;bottom:18px;right:22px;font-family:var(--font-mono);font-size:12px;color:#6b635d;z-index:40}
+</style>
+</head>
+<body>
+<div class="deck" id="deck">
+<div class="prog" id="prog"></div>
+
+<!-- 1 · TITLE -->
+<section class="slide title nofoot">
+  <div class="hero"><img src="assets/bb-hero.svg" alt=""></div>
+  <div class="overlay">
+    <div class="kick">AI Engineer World's Fair</div>
+    <span class="title-h">Hill Climbing Skills</span>
+    <div class="sub">How to improve agents without touching the model.</div>
+    <div class="byrow"><span>Shubhankar Srivastava · Browserbase</span><span>Slido · slido.com #1609070</span></div>
+  </div>
+</section>
+
+<!-- 2 · WHOAMI -->
+<section class="slide">
+  <div class="head" style="margin-bottom:0"><div class="kick">whoami</div></div>
+  <div class="split" style="margin-top:18px">
+    <div>
+      <h1>Shubhankar Srivastava</h1>
+      <div class="role">Sales Engineer · Browserbase</div>
+      <div class="lead-p" style="color:var(--ink);font-weight:600;font-family:var(--font-display)">I help our customers ship browser agents in production.</div>
+      <div style="display:flex;align-items:center;gap:16px;margin-top:30px;padding-top:22px;border-top:1px solid var(--line)">
+        <img src="assets/slido-qr.png" alt="Slido QR" style="width:128px;height:128px;background:#fff;padding:8px;border-radius:10px;flex-shrink:0">
+        <div>
+          <div style="font-family:var(--font-display);font-weight:700;font-size:26px;color:var(--ink)">Questions? Scan along the way.</div>
+          <div style="font-family:var(--font-mono);font-size:19px;color:var(--gray);margin-top:5px">slido.com · #1609070</div>
+        </div>
+      </div>
+    </div>
+    <div style="display:flex;justify-content:center"><img class="portrait" src="assets/shubhankar.png" alt="Shubhankar Srivastava"></div>
+  </div>
+</section>
+
+<!-- 3 · PRIMER -->
+<section class="slide">
+  <div class="head" style="margin-bottom:18px">
+    <div class="kick">before we dive in</div>
+    <h1>A 60-second primer on browser agents.</h1>
+  </div>
+  <div class="body" style="margin-top:0;flex:1;display:flex;align-items:center">
+    <div class="vlist" style="margin:0 auto;max-width:1000px;width:100%">
+      <div class="vrow">
+        <div class="vic"><svg viewBox="0 0 28 28"><rect x="4" y="6" width="20" height="16" rx="2"/><path d="M4 11h20"/><circle cx="7.2" cy="8.5" r="0.6" fill="#0B0A0A" stroke="none"/></svg></div>
+        <div><h4>Browser agent</h4><p>An agent that can drive a browser.</p></div>
+      </div>
+      <div class="vrow">
+        <div class="vic"><svg viewBox="0 0 28 28"><path d="M8.5 20a5 5 0 0 1 .6-10 6.2 6.2 0 0 1 11.8 2.2A4.2 4.2 0 0 1 19.5 20z"/></svg></div>
+        <div><h4>Browserbase</h4><p>A platform for building and running browser agents.</p></div>
+      </div>
+      <div class="vrow">
+        <div class="vic"><svg viewBox="0 0 28 28"><rect x="4" y="5" width="20" height="18" rx="2"/><path d="M8 11l4 3-4 3M14.5 17h4.5"/></svg></div>
+        <div><h4>browse CLI</h4><p>The commands the agent calls to act: <span style="font-family:var(--font-mono);color:var(--ink)">open · snapshot · click · type</span>.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RELIABILITY -->
+<section class="slide statement">
+  <div class="kick" style="color:#0B0A0A">the biggest problem</div>
+  <h1 style="font-size:62px;max-width:none;line-height:1.06">Browser agents are<br><span class="hl">not reliable</span>.</h1>
+  <div class="sub" style="color:var(--lead);max-width:50ch">But reliability is an <b style="color:var(--ink);font-weight:600">engineering problem</b>.</div>
+</section>
+
+<!-- CASE IN POINT 1 · GOOGLE FLIGHTS (UI fumble) -->
+<section class="slide">
+  <div class="head" style="margin-bottom:20px">
+    <div class="kick">case in point</div>
+    <h1 style="font-size:54px">A browser agent on <span class="hl">Google Flights</span>.</h1>
+  </div>
+  <div class="body" style="margin-top:0;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+    <div class="replay">
+      <video autoplay muted loop playsinline poster="assets/flights-fail-poster.jpg">
+        <source src="assets/flights-fail.mp4" type="video/mp4">
+      </video>
+      <div class="rvp" style="display:none">▶  session replay: drop a clip at <b>assets/flights-fail.mp4</b></div>
+    </div>
+    <div class="cap">can't drag the departure-time slider · 29 turns · no answer</div>
+  </div>
+</section>
+
+<!-- CASE IN POINT 2 · OPENTABLE (antibot) -->
+<section class="slide">
+  <div class="head" style="margin-bottom:20px">
+    <div class="kick">a different failure</div>
+    <h1 style="font-size:54px">A browser agent on <span class="hl">OpenTable</span>.</h1>
+  </div>
+  <div class="body" style="margin-top:0;flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px">
+    <div class="replay">
+      <video autoplay muted loop playsinline poster="assets/fail-opentable-akamai-poster.jpg">
+        <source src="assets/fail-opentable-akamai.mp4" type="video/mp4">
+      </video>
+      <div class="rvp" style="display:none">▶  session replay: drop a clip at <b>assets/fail-opentable-akamai.mp4</b></div>
+    </div>
+    <div class="cap">searches for a table, hits Akamai bot protection · 30 turns · $6.22 · no answer</div>
+  </div>
+</section>
+
+<!-- PROBLEM (never learn) -->
+<section class="slide" style="align-items:center;text-align:center;justify-content:center">
+  <div class="head" style="margin-bottom:30px">
+    <div class="kick">the root cause</div>
+    <h1 style="max-width:none;font-size:52px">Browser agents are geniuses<br>that <span class="hl">never learn</span>.</h1>
+  </div>
+  <div class="body" style="margin-top:0;display:flex;align-items:center;justify-content:center">
+    <div class="vlist" style="text-align:left;margin:0 auto;max-width:920px">
+      <div class="vrow">
+        <div class="vic"><svg viewBox="0 0 28 28"><rect x="6.5" y="12.5" width="15" height="10.5" rx="2"/><path d="M9.5 12.5V9.5a4.5 4.5 0 0 1 9 0v3"/><circle cx="14" cy="17.6" r="1.5" fill="#0B0A0A" stroke="none"/></svg></div>
+        <div><div class="sym">unreliable</div><h4>General-purpose models, site-specific tricks</h4><p>They know no single site's quirks. Yesterday's working flow quietly breaks today.</p></div>
+      </div>
+      <div class="vrow">
+        <div class="vic"><svg viewBox="0 0 28 28"><path d="M23 14a9 9 0 1 1-2.6-6.3"/><path d="M23 4.5V9.5H18"/></svg></div>
+        <div><div class="sym">slow</div><h4>Every run starts from zero</h4><p>It re-figures everything out every run. A trick it just found is gone by the next.</p></div>
+      </div>
+      <div class="vrow">
+        <div class="vic"><svg viewBox="0 0 28 28"><circle cx="14" cy="14" r="3.6"/><path d="M14 3.5v3M14 21.5v3M3.5 14h3M21.5 14h3M6.6 6.6l2 2M19.4 19.4l2 2M21.4 6.6l-2 2M8.6 19.4l-2 2"/><path d="M5 23.2 23 4.8"/></svg></div>
+        <div><div class="sym">expensive</div><h4>Fine-tuning isn't the fix</h4><p>Retraining per-site is costly and brittle. The web changes faster than you can train.</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- IDEA -->
+<section class="slide orange statement">
+  <div class="kick" style="color:#0B0A0A">the idea</div>
+  <h1>Loops that learn.</h1>
+  <div class="sub">Borrowing from Karpathy's autoresearch loop, applied to browser agents.</div>
+</section>
+
+<!-- 9 · LIVE DEMO -->
+<section class="slide statement">
+  <div class="kick">▶ Live demo</div>
+  <h1>Kick off an <span class="hl">autobrowse</span> loop.</h1>
+  <div class="sub" style="color:var(--lead)">The same Google Flights task that just failed.</div>
+</section>
+
+<!-- 10 · HOW IT WORKS -->
+<section class="slide">
+  <div class="head" style="margin-bottom:14px">
+    <div class="kick">how it works</div>
+    <h1>One prompt in. A skill out.</h1>
+  </div>
+  <div class="body" style="margin-top:0;flex:1;display:flex;flex-direction:column;gap:14px">
+    <div class="split" style="margin-top:4px;flex:1;align-items:center">
+      <svg class="diagram" viewBox="0 0 520 420" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="auto-research loop architecture">
+        <defs>
+          <marker id="ah" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#0B0A0A"/></marker>
+          <marker id="aho" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto"><path d="M0,0 L7,3 L0,6 Z" fill="#FF3D00"/></marker>
+        </defs>
+        <!-- prompt -->
+        <rect x="180" y="4" width="160" height="50" rx="9" fill="#f4efe9" stroke="#0B0A0A" stroke-width="1.5"/>
+        <text x="260" y="27" class="dt">Prompt</text><text x="260" y="44" class="ds">the task to solve</text>
+        <line x1="260" y1="54" x2="260" y2="86" stroke="#0B0A0A" stroke-width="1.5" marker-end="url(#ah)"/>
+        <!-- loop box -->
+        <rect x="14" y="88" width="492" height="258" rx="14" fill="none" stroke="#FF3D00" stroke-width="1.5" stroke-dasharray="3 6"/>
+        <rect x="178" y="103" width="204" height="18" fill="#FAF7F3"/>
+        <text x="260" y="116" class="dl" text-anchor="middle" font-size="11">AUTOBROWSE LOOP</text>
+        <!-- doer (stacked = spawned fresh each iteration) -->
+        <rect x="86" y="130" width="356" height="66" rx="9" fill="#fff" stroke="#cfc6bd" stroke-width="1.5"/>
+        <rect x="82" y="134" width="356" height="66" rx="9" fill="#fff" stroke="#b6aca1" stroke-width="1.5"/>
+        <rect x="78" y="138" width="356" height="66" rx="9" fill="#fff" stroke="#0B0A0A" stroke-width="1.5"/>
+        <text x="256" y="162" class="dt">Doer</text>
+        <text x="256" y="181" class="ds">fresh browser agent, spawned each run</text>
+        <text x="256" y="196" class="ds">Claude loop · browse CLI → Browserbase</text>
+        <!-- teacher (fresh stateless call each iteration) -->
+        <rect x="34" y="264" width="452" height="66" rx="9" fill="#fff" stroke="#0B0A0A" stroke-width="1.8"/>
+        <text x="260" y="288" class="dt">Teacher</text>
+        <text x="260" y="307" class="ds">fresh call each iteration</text>
+        <text x="260" y="322" class="ds">reads trace · appends to strategy.md · judges</text>
+        <!-- loop arrows (doer 204 ↔ teacher 264) -->
+        <line x1="312" y1="204" x2="312" y2="264" stroke="#0B0A0A" stroke-width="1.5" marker-end="url(#ah)"/>
+        <rect x="320" y="224" width="42" height="18" fill="#FAF7F3"/>
+        <text x="326" y="237" class="ds" text-anchor="start">trace</text>
+        <line x1="208" y1="264" x2="208" y2="204" stroke="#FF3D00" stroke-width="1.5" marker-end="url(#aho)"/>
+        <rect x="114" y="224" width="88" height="18" fill="#FAF7F3"/>
+        <text x="200" y="237" class="dl" text-anchor="end">strategy.md</text>
+        <!-- graduates (from teacher / box) -->
+        <line x1="260" y1="330" x2="260" y2="370" stroke="#FF3D00" stroke-width="1.5" marker-end="url(#aho)"/>
+        <rect x="266" y="352" width="156" height="18" fill="#FAF7F3"/>
+        <text x="272" y="365" class="ds" fill="#FF3D00" text-anchor="start">graduates on a pass</text>
+        <rect x="175" y="374" width="170" height="44" rx="9" fill="#FFF1EC" stroke="#FF3D00" stroke-width="2"/>
+        <text x="260" y="402" class="dt" fill="#FF3D00">SKILL.md</text>
+      </svg>
+      <div class="code" style="font-size:14.5px;line-height:1.75;max-width:100%;padding:24px 26px">
+        <span class="c">// runner.mjs: the trainer loop</span><br>
+        let strategy = <span class="c">"# skill"</span><br>
+        for (i = 1; i &lt;= N &amp;&amp; !passed; i++) {<br>
+        &nbsp;&nbsp;s   = browserbase.create()      <span class="c">// fresh</span><br>
+        &nbsp;&nbsp;run = await runDoer(s, model)   <span class="c">// spawn evaluate.mjs</span><br>
+        &nbsp;&nbsp;rev = await trainer(run.trace, strategy)<br>
+        &nbsp;&nbsp;<span class="c">//  study → fix → append → judge</span><br>
+        &nbsp;&nbsp;strategy = rev.strategy_md      <span class="c">// grows the doc</span><br>
+        &nbsp;&nbsp;passed   = rev.pass<br>
+        }<br>
+        graduate(strategy)  <span class="k">→</span>  SKILL.md
+      </div>
+    </div>
+    <div class="lead-p" style="margin:0;text-align:center;max-width:none">A fresh doer each run. The teacher appends one fix to <code>strategy.md</code>. It graduates when a run passes.</div>
+  </div>
+</section>
+
+<!-- 11 · THE ARTIFACT -->
+<section class="slide" style="justify-content:center">
+  <div class="head" style="margin-bottom:24px">
+    <div class="kick">the artifact</div>
+    <h1 style="font-size:54px">The output is a production playbook.</h1>
+    <div class="lead-p">A real <code>SKILL.md</code> the loop wrote: the steps that work, and the gotchas it discovered.</div>
+  </div>
+  <div class="body" style="margin-top:0;display:flex;align-items:center">
+    <div class="mdfile">
+      <div class="bar"><span class="fn">SKILL.md</span><span class="pth">.claude/skills/google-flights-search-with-filters/</span></div>
+<pre><span class="fm">---
+name: google-flights-search-with-filters
+description: Search Google Flights for a route, date, cabin
+  class, baggage, and departure-time filters.
+---</span>
+
+<span class="h"># Google Flights Search with Filters</span>
+
+<span class="h">## Workflow</span>
+<span class="h">### Step 1: Navigate via the pre-filled URL</span>
+<span class="b">ALWAYS use the ?q= URL. NEVER open the bare homepage.</span>
+  https://www.google.com/travel/flights?q=business+class
+  +flights+from+SFO+to+JFK+on+July+15+departing+after+10am
+
+<span class="h">## Heuristics learned</span>
+1. <span class="b">Pre-filled URL is mandatory.</span> The bare homepage wastes 3–5 turns.
+2. <span class="b">Calendar reopen bug is real.</span> Escape → Tab ×3 → click Search.
+3. <span class="b">Use JS injection for sliders.</span> Mouse drag is unreliable;
+   set value = 20 (30-min steps; 20 = 10:00 AM).
+4. <span class="b">Never re-fill a filled field</span>, it resets the form.</pre>
+    </div>
+  </div>
+</section>
+
+<!-- 12 · RESULTS -->
+<section class="slide" style="justify-content:center">
+  <div class="head" style="margin-bottom:14px">
+    <div class="kick">the results</div>
+    <h1>The same agent, improving itself.</h1>
+    <div class="lead-p">The hill climb, across cost, turns, time, and success.</div>
+  </div>
+  <div class="body" style="margin-top:0;display:flex;flex-direction:column;justify-content:center;gap:12px">
+    <div style="display:flex;flex-direction:column;gap:12px;width:100%;max-width:1380px;margin:0 auto">
+
+      <!-- Google Flights -->
+      <div class="resrow">
+        <div class="resrow-lab">Google Flights<div class="sub">find flights</div></div>
+        <div class="reschart sm"><h5>Cost</h5><div class="delta">16× cheaper</div>
+          <div class="chartbox" data-kind="lower" data-vals="11.88,0.72,0.48,0.73" data-first="$11.88" data-last="$0.73"></div></div>
+        <div class="reschart sm"><h5>Turns</h5><div class="delta">6× fewer</div>
+          <div class="chartbox" data-kind="lower" data-vals="30,5,4,5" data-first="30" data-last="5"></div></div>
+        <div class="reschart sm"><h5>Time</h5><div class="delta">3.8× faster</div>
+          <div class="chartbox" data-kind="lower" data-vals="152,41,45,40" data-first="152s" data-last="40s"></div></div>
+        <div class="reschart sm"><h5>Success</h5><div class="delta">fails, then passes</div>
+          <div class="chartbox" data-kind="success" data-vals="0,1,1,1" data-first="✗ 0%" data-last="✓ 100%"></div></div>
+      </div>
+
+      <!-- OpenTable -->
+      <div class="resrow">
+        <div class="resrow-lab hero">OpenTable<div class="sub">book a table</div></div>
+        <div class="reschart sm"><h5>Cost</h5><div class="delta">12× cheaper</div>
+          <div class="chartbox" data-kind="lower" data-vals="6.22,2.44,1.2,0.49,0.51" data-first="$6.22" data-last="$0.51"></div></div>
+        <div class="reschart sm"><h5>Turns</h5><div class="delta">7.5× fewer</div>
+          <div class="chartbox" data-kind="lower" data-vals="30,13,20,4,4" data-first="30" data-last="4"></div></div>
+        <div class="reschart sm"><h5>Time</h5><div class="delta">7× faster</div>
+          <div class="chartbox" data-kind="lower" data-vals="189,98,239,22,27" data-first="189s" data-last="27s"></div></div>
+        <div class="reschart sm"><h5>Success</h5><div class="delta">fails, then passes</div>
+          <div class="chartbox" data-kind="success" data-vals="0,1,0,1,1" data-first="✗ 0%" data-last="✓ 100%"></div></div>
+      </div>
+
+      <!-- rec.us -->
+      <div class="resrow">
+        <div class="resrow-lab">rec.us<div class="sub">find courts</div></div>
+        <div class="reschart sm"><h5>Cost</h5><div class="delta">2.7× cheaper</div>
+          <div class="chartbox" data-kind="lower" data-vals="4.95,4.8,4.42,2.75,1.86" data-first="$4.95" data-last="$1.86"></div></div>
+        <div class="reschart sm"><h5>Turns</h5><div class="delta">1.8× fewer</div>
+          <div class="chartbox" data-kind="lower" data-vals="18,17,26,18,10" data-first="18" data-last="10"></div></div>
+        <div class="reschart sm"><h5>Time</h5><div class="delta">1.4× faster</div>
+          <div class="chartbox" data-kind="lower" data-vals="104,136,192,134,77" data-first="104s" data-last="77s"></div></div>
+        <div class="reschart sm"><h5>Success</h5><div class="delta">stays passing</div>
+          <div class="chartbox" data-kind="success" data-vals="1,1,0,1,1" data-first="✓ pass" data-last="✓ pass"></div></div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- 16 · BROWSE.SH -->
+<section class="slide" style="justify-content:center">
+  <div class="head" style="margin-bottom:14px">
+    <div class="kick">the product</div>
+    <h1>browse.sh: muscle memory for the web.</h1>
+  </div>
+  <div class="split" style="margin-top:8px;align-items:center;flex:none">
+    <div class="vlist" style="max-width:none">
+      <div class="vrow" style="padding:20px 0"><div class="vic"><svg viewBox="0 0 28 28"><rect x="4" y="5" width="20" height="5" rx="1.5"/><rect x="4" y="12" width="20" height="5" rx="1.5"/><rect x="4" y="19" width="20" height="5" rx="1.5"/></svg></div><div><h4>400+ ready-made skills</h4><p>Import any site into your agent.</p></div></div>
+      <div class="vrow" style="padding:20px 0"><div class="vic"><svg viewBox="0 0 28 28"><rect x="5" y="5" width="18" height="18" rx="3"/><path d="M14 10v8M10 14h8"/></svg></div><div><h4>Submit a prompt</h4><p>Get a skill built for your site.</p></div></div>
+      <div class="vrow" style="padding:20px 0"><div class="vic"><svg viewBox="0 0 28 28"><path d="M14 3l9 3v6.5c0 5.5-3.8 9.4-9 11-5.2-1.6-9-5.5-9-11V6z"/><path d="M10.5 14l2.3 2.3 4.7-4.8"/></svg></div><div><h4>Suggested selectors</h4><p>Cut token costs ~50×.</p></div></div>
+    </div>
+    <div style="display:flex;justify-content:center"><img src="assets/browse-sh.png" alt="browse.sh, the open web catalog" style="max-height:58vh;max-width:100%;border-radius:12px;border:1px solid var(--line);box-shadow:0 6px 30px rgba(0,0,0,.10)"></div>
+  </div>
+</section>
+
+<!-- BEYOND BROWSERS (segue to your domain) -->
+<section class="slide">
+  <div class="head" style="margin-bottom:28px">
+    <div class="kick">beyond browsers</div>
+    <h1>It's not just browsers.</h1>
+    <div class="lead-p">Any agent working a live system re-learns from zero. The same train-a-skill loop applies far beyond the browser.</div>
+  </div>
+  <div class="body" style="margin-top:0;flex:1;display:flex;align-items:center">
+    <div class="widgets">
+      <div class="widget">
+        <div class="wic"><svg viewBox="0 0 28 28"><path d="M10 8l-6 6 6 6"/><path d="M18 8l6 6-6 6"/></svg></div>
+        <h4>Coding agents</h4>
+        <p>Re-learns your repo's conventions on every task.</p>
+        <div class="tagline">conventions, relearned</div>
+      </div>
+      <div class="widget">
+        <div class="wic"><svg viewBox="0 0 28 28"><circle cx="12" cy="12" r="7"/><path d="M17.5 17.5l5 5"/></svg></div>
+        <h4>Research agents</h4>
+        <p>Re-discovers which sources actually work, every run.</p>
+        <div class="tagline">sources, rediscovered</div>
+      </div>
+      <div class="widget">
+        <div class="wic"><svg viewBox="0 0 28 28"><rect x="4" y="4" width="8" height="8" rx="1.5"/><rect x="16" y="4" width="8" height="8" rx="1.5"/><rect x="4" y="16" width="8" height="8" rx="1.5"/><rect x="16" y="16" width="8" height="8" rx="1.5"/></svg></div>
+        <h4>Internal ops</h4>
+        <p>Same dashboards, same flows, no memory.</p>
+        <div class="tagline">flows, repeated</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FRAMEWORK -->
+<section class="slide">
+  <div class="head" style="margin-bottom:16px">
+    <div class="kick">your turn</div>
+    <h1>Do this in your domain.</h1>
+    <div class="lead-p">It works wherever two things are true.</div>
+  </div>
+  <div class="body" style="margin-top:0;flex:1;display:flex;flex-direction:column;justify-content:center;gap:30px">
+    <div class="vlist" style="margin:0 auto;max-width:940px;width:100%">
+      <div class="vrow">
+        <div class="vic"><svg viewBox="0 0 28 28"><path d="M23 14a9 9 0 1 1-2.6-6.3"/><path d="M23 4.5V9.5H18"/></svg></div>
+        <div><div class="sym" style="color:var(--lead)">01</div><h4>A replayable environment</h4><p>You can retry the same task deterministically.</p></div>
+      </div>
+      <div class="vrow">
+        <div class="vic"><svg viewBox="0 0 28 28"><path d="M14 3l9 3v6.5c0 5.5-3.8 9.4-9 11-5.2-1.6-9-5.5-9-11V6z"/><path d="M10.5 14l2.3 2.3 4.7-4.8"/></svg></div>
+        <div><div class="sym" style="color:var(--lead)">02</div><h4>A verifiable outcome</h4><p>You can tell pass from fail automatically.</p></div>
+      </div>
+    </div>
+    <div class="lead-p" style="margin:0;text-align:center;max-width:none">Then a doer/teacher loop does the rest. Cheap, and it compounds.</div>
+  </div>
+</section>
+
+<!-- QUESTIONS + CTAs -->
+<section class="slide nofoot">
+  <div class="head" style="margin-bottom:0"><h1>Questions?</h1></div>
+  <div class="split" style="margin-top:20px;align-items:stretch">
+    <div style="display:flex;flex-direction:column;justify-content:center;gap:20px">
+      <div class="cta" style="display:flex;align-items:center;gap:18px"><img src="assets/qr-github.png" alt="repo QR" style="width:140px;height:140px;flex-shrink:0;background:#fff;border-radius:7px"><div><div class="cta-lab">the code I demoed</div><div class="cta-cmd">github.com/shubh24/ai-engineer-autobrowse</div></div></div>
+      <div class="cta" style="display:flex;align-items:center;gap:18px"><img src="assets/qr-skill.png" alt="skill QR" style="width:140px;height:140px;flex-shrink:0;background:#fff;border-radius:7px"><div><div class="cta-lab">use the skill</div><div class="cta-cmd">npx skills add github.com/browserbase/skills --skill autobrowse</div></div></div>
+      <div class="by" style="margin-top:6px">Shubhankar Srivastava · Browserbase</div>
+    </div>
+    <div class="slido-embed"><iframe src="https://app.sli.do/event/q3vou2KR8PYnfKkAvuDH7J" frameBorder="0" allow="clipboard-write" title="Slido"></iframe></div>
+  </div>
+</section>
+
+<!-- APPENDIX · THE DOER'S SYSTEM PROMPT -->
+<section class="slide" style="justify-content:center">
+  <div class="head" style="margin-bottom:24px">
+    <div class="kick">appendix · the doer's brief</div>
+    <h1 style="font-size:54px">The skill is just injected into the prompt.</h1>
+    <div class="lead-p">A fixed harness: the <code>browse</code> CLI and a few hard rules, plus everything the teacher has learned so far.</div>
+  </div>
+  <div class="body" style="margin-top:0;display:flex;align-items:center">
+    <div class="mdfile">
+      <div class="bar"><span class="fn">system prompt</span><span class="pth">doer · rebuilt every iteration</span></div>
+<pre><span class="b">You are a browser automation agent.</span> You navigate
+websites using the browse CLI via the execute tool.
+
+<span class="h">## Commands</span>
+  browse open / snapshot / click [X-Y] / fill / press
+  browse mouse drag &lt;x1 y1 x2 y2&gt;     <span class="b"># sliders</span>
+
+<span class="h">## Critical Rules</span>
+1. ALWAYS snapshot after every action. Refs invalidate
+   when the DOM changes.
+2. Never invent refs. Snapshot first, then click.
+3. Use fill, not type, for input fields.
+
+<span class="h"># Current Navigation Strategy</span>
+Learned from previous iterations. Follow these:
+<span class="inj">  &#123;&#123; strategy.md, injected fresh each iteration &#125;&#125;</span></pre>
+    </div>
+  </div>
+</section>
+
+</div>
+
+<div class="ctr" id="ctr">1 / 20</div>
+<script>
+const slides=[...document.querySelectorAll('.slide')];let i=0;
+const FOOT='<div class="foot"><span>Browserbase</span><span>AI Engineer · 2026</span></div>';
+slides.forEach(s=>{if(!s.classList.contains('nofoot'))s.insertAdjacentHTML('beforeend',FOOT);});
+function show(n){i=Math.max(0,Math.min(slides.length-1,n));
+  slides.forEach((s,k)=>s.classList.toggle('on',k===i));
+  document.getElementById('ctr').textContent=(i+1)+' / '+slides.length;
+  document.getElementById('prog').style.width=((i+1)/slides.length*100)+'%';}
+document.addEventListener('keydown',e=>{
+  if(['ArrowRight',' ','PageDown'].includes(e.key)){show(i+1);e.preventDefault();}
+  if(['ArrowLeft','PageUp'].includes(e.key)){show(i-1);e.preventDefault();}
+  if(e.key==='Home')show(0); if(e.key==='End')show(slides.length-1);});
+document.addEventListener('click',e=>{if(e.target.closest('a'))return;(e.clientX>innerWidth*0.4?show(i+1):show(i-1));});
+const fromHash=()=>{const h=parseInt((location.hash||'').slice(1));return isNaN(h)?0:h-1;};
+window.addEventListener('hashchange',()=>show(fromHash()));
+
+// results charts: plot every iteration as a curve (iter 1 → graduated)
+document.querySelectorAll('.chartbox').forEach(box=>{
+  const vals=box.dataset.vals.split(',').map(Number), kind=box.dataset.kind, n=vals.length;
+  const x0=45,x1=255,top=32,bot=98;
+  const xs=vals.map((_,i)=> n===1?(x0+x1)/2 : x0+(x1-x0)*i/(n-1));
+  let ys;
+  if(kind==='success'){ ys=vals.map(v=> v?32:92); }
+  else { const mx=Math.max(...vals),mn=Math.min(...vals),rng=(mx-mn)||1; ys=vals.map(v=> top+(bot-top)*(mx-v)/rng); }
+  const pts=xs.map((x,i)=>x.toFixed(1)+','+ys[i].toFixed(1)).join(' ');
+  const stroke=kind==='success'?'#bdb3a8':'#d4805e';
+  let dots='';
+  for(let i=0;i<n;i++){
+    let fill,r;
+    if(kind==='success'){ fill=vals[i]?'#4F8A1B':'#c2402a'; r=5; }
+    else { fill=i===0?'#d4805e':i===n-1?'#4F8A1B':'#c9beb4'; r=(i===0||i===n-1)?6:4; }
+    dots+=`<circle cx="${xs[i].toFixed(1)}" cy="${ys[i].toFixed(1)}" r="${r}" fill="${fill}"/>`;
+  }
+  const lblA=`<text x="${xs[0].toFixed(1)}" y="${(ys[0]-9).toFixed(1)}" text-anchor="start" class="cl">${box.dataset.first}</text>`;
+  const lblB=`<text x="${xs[n-1].toFixed(1)}" y="${(ys[n-1]-9).toFixed(1)}" text-anchor="end" class="cl">${box.dataset.last}</text>`;
+  const xlab=`<text x="${x0}" y="114" text-anchor="middle" class="cx">iter 1</text><text x="${x1}" y="114" text-anchor="middle" class="cx">graduated</text>`;
+  box.innerHTML=`<svg viewBox="0 0 300 120"><polyline points="${pts}" fill="none" stroke="${stroke}" stroke-width="2.5"/>${dots}${lblA}${lblB}${xlab}</svg>`;
+});
+
+const rv=document.getElementById('rv');
+if(rv){rv.addEventListener('error',()=>{rv.style.display='none';const p=document.getElementById('rvp');if(p)p.style.display='flex';},true);}
+show(fromHash());
+</script>
+</body>
+</html>
